@@ -1,0 +1,187 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* ──────────────────────────────────────────────
+     PRIMARY — Azul UNINASSAU Vibrante
+     Base: #0057B8 (institutional blue, lighter)
+     Sidebar dark: #03122B
+  ────────────────────────────────────────────── */
+  --color-cyan-50:  #eef4ff;
+  --color-cyan-100: #dce9ff;
+  --color-cyan-200: #b3cffe;
+  --color-cyan-300: #6ea9fb;
+  --color-cyan-400: #3b82f6;
+  --color-cyan-500: #0057B8;
+  --color-cyan-600: #004899;
+  --color-cyan-700: #00357a;
+  --color-cyan-800: #01205a;
+  --color-cyan-900: #011038;
+  --color-cyan-950: #03122B;
+
+  /* ──────────────────────────────────────────────
+     ACCENT — Amarelo UNINASSAU
+  ────────────────────────────────────────────── */
+  --color-amber-50:  #fffdf0;
+  --color-amber-100: #fffacc;
+  --color-amber-200: #fff299;
+  --color-amber-300: #ffe333;
+  --color-amber-400: #ffd600;
+  --color-amber-500: #FFCD00;
+  --color-amber-600: #d4a900;
+  --color-amber-700: #a87e00;
+  --color-amber-800: #7a5700;
+  --color-amber-900: #4d3500;
+  --color-amber-950: #2e1f00;
+
+  /* ──────────────────────────────────────────────
+     SUPPORT — Indigo (mapped = same as primary)
+  ────────────────────────────────────────────── */
+  --color-indigo-50:  #eef4ff;
+  --color-indigo-100: #dce9ff;
+  --color-indigo-200: #b3cffe;
+  --color-indigo-300: #6ea9fb;
+  --color-indigo-400: #3b82f6;
+  --color-indigo-500: #0057B8;
+  --color-indigo-600: #004899;
+  --color-indigo-700: #00357a;
+  --color-indigo-800: #01205a;
+  --color-indigo-900: #011038;
+  --color-indigo-950: #03122B;
+}
+
+/* ── Global Reset & Base ─────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #f0f4f8;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Sidebar dark tokens ─────────────────────────────── */
+:root {
+  --sidebar-bg:          #03122B;
+  --sidebar-border:      rgba(255,255,255,0.07);
+  --sidebar-item-hover:  rgba(255,255,255,0.06);
+  --sidebar-item-active: rgba(0, 87, 184, 0.25);
+  --sidebar-text:        rgba(255,255,255,0.65);
+  --sidebar-text-active: #ffffff;
+  --sidebar-icon:        rgba(255,255,255,0.4);
+  --sidebar-icon-active: #60a5fa;
+  --primary:             #0057B8;
+  --primary-light:       #3b82f6;
+  --primary-glow:        rgba(0, 87, 184, 0.35);
+}
+
+/* ── Animations ──────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--primary-glow); }
+  50%       { box-shadow: 0 0 0 6px transparent; }
+}
+
+.animate-fade-in  { animation: fadeIn  0.25s ease both; }
+.animate-slide-up { animation: slideUp 0.3s  ease both; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+/* ── Custom scrollbar ────────────────────────────────── */
+::-webkit-scrollbar         { width: 5px; height: 5px; }
+::-webkit-scrollbar-track   { background: transparent; }
+::-webkit-scrollbar-thumb   { background: #cbd5e1; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Scrollbar inside dark sidebar */
+.sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
+.sidebar-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+/* ── Sidebar nav item ────────────────────────────────── */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sidebar-text);
+  transition: all 0.18s ease;
+  cursor: pointer;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+}
+.sidebar-item:hover {
+  background: var(--sidebar-item-hover);
+  color: var(--sidebar-text-active);
+}
+.sidebar-item.active {
+  background: var(--sidebar-item-active);
+  color: var(--sidebar-text-active);
+  border-left: 3px solid var(--primary-light);
+  border-radius: 0 10px 10px 0;
+}
+.sidebar-item .s-icon {
+  color: var(--sidebar-icon);
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  transition: color 0.18s ease;
+}
+.sidebar-item.active .s-icon,
+.sidebar-item:hover .s-icon {
+  color: var(--sidebar-icon-active);
+}
+
+/* ── Primary button gradient ─────────────────────────── */
+.btn-primary {
+  background: linear-gradient(135deg, #0057B8 0%, #0072ef 100%);
+  color: white;
+  font-weight: 700;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(0, 87, 184, 0.3);
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, #004899 0%, #005fcc 100%);
+  box-shadow: 0 6px 20px rgba(0, 87, 184, 0.45);
+  transform: translateY(-1px);
+}
+.btn-primary:active { transform: translateY(0); }
+
+/* ── Card base ───────────────────────────────────────── */
+.card {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.07);
+}
+
+/* ── Badge role colors ───────────────────────────────── */
+.badge-admin       { background: rgba(239,68,68,0.1);  color: #ef4444;  border: 1px solid rgba(239,68,68,0.25); }
+.badge-coordenacao { background: rgba(245,158,11,0.1); color: #d97706;  border: 1px solid rgba(245,158,11,0.25); }
+.badge-professor   { background: rgba(0,87,184,0.1);   color: #0057B8;  border: 1px solid rgba(0,87,184,0.25); }
+.badge-aluno       { background: rgba(16,185,129,0.1); color: #059669;  border: 1px solid rgba(16,185,129,0.25); }
+
+/* ── Certificate print ───────────────────────────────── */
+.cert-print-container {
+  box-shadow: 0 10px 40px -5px rgba(0,0,0,0.15), 0 8px 20px -6px rgba(0,0,0,0.08);
+}

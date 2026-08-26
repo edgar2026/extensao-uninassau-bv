@@ -1,0 +1,65 @@
+# ─── PORTAL DE PROJETOS UNINASSAU - GITIGNORE ────────────────────────────────
+
+# Dependencies
+node_modules/
+
+# Build output
+build/
+dist/
+
+# Test coverage
+coverage/
+
+# Environment variables (contêm chaves reais)
+.env
+.env.*
+!.env.example
+
+# Supabase local temp (contém refs, pooler URLs)
+supabase/.temp/
+
+# Supabase local config (opcional no repo)
+supabase/config.toml
+
+# Editor / IDE configs
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+*.local
+temp/
+tmp/
+
+# Data files (nunca versionar)
+*.xlsx
+*.xls
+*.csv
+*.pdf
+uploads/
+exports/
+backups/
+
+# Opencode configs (podem conter tokens)
+opencode.json
+opencode.json.backup
+
+# Seed scripts (contêm chaves de projetos antigos)
+seed_alunos.mjs
+
+# Deploy docs (contêm chaves reais)
+DEPLOY_VERCEL.md
+
+# Vercel config
+.vercel/
