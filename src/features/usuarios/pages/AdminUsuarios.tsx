@@ -719,27 +719,27 @@ export const AdminUsuarios: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm w-full">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left border-collapse text-xs" style={{ minWidth: '1400px' }}>
             <thead>
               <tr className="bg-slate-50/75 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                <th className="px-4 py-3.5">Nome completo</th>
-                <th className="px-4 py-3.5">Matrícula</th>
-                <th className="px-4 py-3.5">Curso</th>
-                <th className="px-4 py-3.5">E-mail</th>
-                <th className="px-4 py-3.5">Perfil</th>
-                <th className="px-4 py-3.5">Campus</th>
-                <th className="px-4 py-3.5">Situação</th>
-                <th className="px-4 py-3.5">Situação de Acesso</th>
-                <th className="px-4 py-3.5">Data de Cadastro</th>
-                <th className="px-4 py-3.5 text-right">Ações</th>
+                <th className="px-4 py-3.5 align-middle whitespace-nowrap">Nome completo</th>
+                <th className="px-4 py-3.5 align-middle whitespace-nowrap">Matrícula</th>
+                <th className="px-4 py-3.5 align-middle whitespace-nowrap">Curso</th>
+                <th className="px-4 py-3.5 align-middle whitespace-nowrap">E-mail</th>
+                <th className="px-4 py-3.5 align-middle whitespace-nowrap">Perfil</th>
+                <th className="px-4 py-3.5 align-middle whitespace-nowrap">Campus</th>
+                <th className="px-4 py-3.5 align-middle whitespace-nowrap">Situação</th>
+                <th className="px-4 py-3.5 align-middle whitespace-nowrap">Situação de Acesso</th>
+                <th className="px-4 py-3.5 align-middle whitespace-nowrap">Data de Cadastro</th>
+                <th className="px-4 py-3.5 text-right align-middle whitespace-nowrap sticky right-0 bg-slate-50 z-10 min-w-[180px] group-hover:bg-slate-100/75">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-600">
               {isSearching && usuarios.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center">
+                  <td colSpan={10} className="px-4 py-12 text-center align-middle">
                     <span className="w-6 h-6 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin inline-block" />
                     <p className="text-slate-400 text-xs mt-2">Carregando usuários...</p>
                   </td>
@@ -747,7 +747,7 @@ export const AdminUsuarios: React.FC = () => {
               )}
               {!isSearching && searchError && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center">
+                  <td colSpan={10} className="px-4 py-12 text-center align-middle">
                     <AlertCircle className="h-8 w-8 text-rose-400 mx-auto mb-2" />
                     <p className="text-rose-600 text-xs font-semibold">{searchError}</p>
                     <button
@@ -761,7 +761,7 @@ export const AdminUsuarios: React.FC = () => {
               )}
               {!isSearching && !searchError && usuarios.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center">
+                  <td colSpan={10} className="px-4 py-12 text-center align-middle">
                     <Search className="h-8 w-8 text-slate-300 mx-auto mb-2" />
                     <p className="text-slate-400 text-xs font-semibold">Nenhum usuário encontrado para os filtros informados.</p>
                     <button
@@ -777,31 +777,31 @@ export const AdminUsuarios: React.FC = () => {
                 const statusCfg = user.accessStatus ? STATUS_CONFIG[user.accessStatus] : null;
                 const StatusIcon = statusCfg?.icon || Clock;
                 return (
-                  <tr key={user.id} className="hover:bg-slate-50/50">
-                    <td className="px-4 py-3 font-bold text-slate-800">{user.nomeCompleto || user.nome}</td>
-                    <td className="px-4 py-3 text-[11px] font-mono">
+                  <tr key={user.id} className="group hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 font-bold text-slate-800 align-middle whitespace-nowrap">{user.nomeCompleto || user.nome}</td>
+                    <td className="px-4 py-3 text-[11px] font-mono align-middle whitespace-nowrap">
                       {user.role === 'aluno'
                         ? (user.matricula || <span className="text-amber-600 italic">Cadastro incompleto</span>)
                         : '-'}
                     </td>
-                    <td className="px-4 py-3 text-[11px]">
+                    <td className="px-4 py-3 text-[11px] align-middle whitespace-nowrap">
                       {user.role === 'aluno'
                         ? (user.curso || <span className="text-amber-600 italic">Cadastro incompleto</span>)
                         : '-'}
                     </td>
-                    <td className="px-4 py-3">{user.email}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle whitespace-nowrap">{user.email}</td>
+                    <td className="px-4 py-3 align-middle whitespace-nowrap">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${ROLE_CLASSES[user.role] || 'bg-slate-100 text-slate-500'}`}>
                         {ROLE_LABELS[user.role] || user.role}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-[11px]">{user.campus || '-'}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-[11px] align-middle whitespace-nowrap">{user.campus || '-'}</td>
+                    <td className="px-4 py-3 align-middle whitespace-nowrap">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${user.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                         {user.active ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle whitespace-nowrap">
                       {statusCfg && (
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 w-fit ${statusCfg.class}`}>
                           <StatusIcon className="h-3 w-3" />
@@ -809,11 +809,13 @@ export const AdminUsuarios: React.FC = () => {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-[11px] text-slate-500">
+                    <td className="px-4 py-3 text-[11px] text-slate-500 align-middle whitespace-nowrap">
                       {user.createdAt ? new Date(user.createdAt).toLocaleDateString('pt-BR') : '-'}
                     </td>
-                    <td className="px-4 py-3 text-right flex items-center justify-end gap-1">
-                      {getActions(user)}
+                    <td className="px-4 py-3 text-right align-middle whitespace-nowrap sticky right-0 bg-white group-hover:bg-slate-50 z-10">
+                      <div className="flex items-center justify-end gap-1">
+                        {getActions(user)}
+                      </div>
                     </td>
                   </tr>
                 );
