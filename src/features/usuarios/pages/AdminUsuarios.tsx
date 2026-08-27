@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { usuariosService } from '../../../services/usuarios.service';
+import { cursosService, Course } from '../../../services/cursos.service';
 import { supabase } from '../../../lib/supabase';
 import { StudentImportRow, StudentImportResult, Usuario, UserRole, CampusCode } from '../../../types';
 
@@ -111,6 +112,8 @@ export const AdminUsuarios: React.FC = () => {
   const [pendingResets, setPendingResets] = useState<{ id: string; user_id: string; email: string; created_at: string }[]>([]);
   const [isLoadingResets, setIsLoadingResets] = useState(false);
 
+  const [activeCourses, setActiveCourses] = useState<{ id: string; nome: string }[]>([]);
+
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isSearching, setIsSearching] = useState(false);
@@ -133,6 +136,10 @@ export const AdminUsuarios: React.FC = () => {
   useEffect(() => {
     fetchUsuarios();
   }, [fetchUsuarios]);
+
+  useEffect(() => {
+    cursosService.listActiveCourses().then(setActiveCourses).catch(() => {});
+  }, []);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchTerm(value);
@@ -260,6 +267,11 @@ export const AdminUsuarios: React.FC = () => {
         last_name: editUserData.lastName,
         campus: editUserData.campus,
         role: editUserData.role,
+        ...(editUserData.role === 'aluno' ? {
+          matricula: editUserData.matricula || null,
+          curso: editUserData.curso || null,
+          nome_completo: editUserData.nomeCompleto || null,
+        } : {}),
       });
       setShowEditModal(false);
       setEditUserData(null);
@@ -659,7 +671,7 @@ export const AdminUsuarios: React.FC = () => {
             value={searchTerm}
             onChange={(e) => handleSearchChange(e.target.value)}
             onKeyDown={handleSearchEnter}
-            placeholder="Buscar por nome, matrícula ou e-mail"
+            placeholder="Buscar por nome, matrícula, e-mail ou curso"
             className="w-full bg-slate-50 pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition"
           />
           {searchTerm && (
@@ -1033,7 +1045,12 @@ export const AdminUsuarios: React.FC = () => {
                 {selectedRole === 'aluno' && (
                   <div className="flex flex-col gap-1.5">
                     <label className="font-semibold text-slate-600">Curso *</label>
-                    <input type="text" placeholder="Ex: Engenharia de Software" {...register('curso', { required: true })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500" />
+                    <select {...register('curso', { required: true })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 text-xs">
+                      <option value="">Selecione o curso</option>
+                      {activeCourses.map(c => (
+                        <option key={c.id} value={c.nome}>{c.nome}</option>
+                      ))}
+                    </select>
                   </div>
                 )}
                 <div className="flex flex-col gap-1.5">
@@ -1248,6 +1265,17 @@ export const AdminUsuarios: React.FC = () => {
               </button>
             </div>
             <div className="space-y-4 text-xs">
+              {editUserData.role === 'aluno' && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-600">Nome Completo</label>
+                  <input
+                    type="text"
+                    value={editUserData.nomeCompleto || editUserData.nome || ''}
+                    onChange={e => setEditUserData({ ...editUserData, nomeCompleto: e.target.value })}
+                    className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500"
+                  />
+                </div>
+              )}
               <div className="flex flex-col gap-1.5">
                 <label className="font-semibold text-slate-600">Nome</label>
                 <input
@@ -1266,6 +1294,32 @@ export const AdminUsuarios: React.FC = () => {
                   className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500"
                 />
               </div>
+              {editUserData.role === 'aluno' && (
+                <>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-semibold text-slate-600">Matrícula</label>
+                    <input
+                      type="text"
+                      value={editUserData.matricula || ''}
+                      onChange={e => setEditUserData({ ...editUserData, matricula: e.target.value })}
+                      className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 font-mono"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-semibold text-slate-600">Curso</label>
+                    <select
+                      value={editUserData.curso || ''}
+                      onChange={e => setEditUserData({ ...editUserData, curso: e.target.value })}
+                      className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 text-xs"
+                    >
+                      <option value="">Selecione o curso</option>
+                      {activeCourses.map(c => (
+                        <option key={c.id} value={c.nome}>{c.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
               <div className="flex flex-col gap-1.5">
                 <label className="font-semibold text-slate-600">Campus</label>
                 <select

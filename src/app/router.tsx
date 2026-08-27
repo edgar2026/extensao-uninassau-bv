@@ -22,6 +22,7 @@ import { AdminProjetos } from '../features/projetos/pages/AdminProjetos';
 import { AdminCertificados } from '../features/certificados/pages/AdminCertificados';
 import { AdminUsuarios } from '../features/usuarios/pages/AdminUsuarios';
 import { AdminAssinaturas } from '../features/certificados/pages/AdminAssinaturas';
+import { AdminCursos } from '../features/cursos/pages/AdminCursos';
 
 import { AdminLayout } from '../app/layouts/AdminLayout';
 import { ProfessorLayout } from '../app/layouts/ProfessorLayout';
@@ -207,6 +208,16 @@ export default function AppRouter() {
             <PrivateRoute allowedRole="admin">
               <AdminLayout>
                 <AdminUsuarios />
+              </AdminLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/cursos"
+          element={
+            <PrivateRoute allowedRole="admin">
+              <AdminLayout>
+                <AdminCursos />
               </AdminLayout>
             </PrivateRoute>
           }

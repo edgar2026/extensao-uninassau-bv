@@ -239,9 +239,9 @@ export interface Unidade {
 export interface Curso {
   id: string;
   nome: string;
-  sigla: string;
-  unidade: string;
-  alunosCount: number;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AssinaturaDigital {

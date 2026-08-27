@@ -52,7 +52,7 @@ export const unidadesService = {
 
   getCursos: async (): Promise<Curso[]> => {
     const { data: cursos, error: cursosError } = await supabase
-      .from('cursos')
+      .from('courses')
       .select('*')
       .order('nome', { ascending: true });
 
@@ -61,20 +61,18 @@ export const unidadesService = {
     return cursos.map((c: any) => ({
       id: c.id,
       nome: c.nome,
-      sigla: c.sigla || '',
-      unidade: c.unidade || '',
-      alunosCount: c.alunos_count || 0,
+      ativo: c.ativo,
+      created_at: c.created_at,
+      updated_at: c.updated_at,
     }));
   },
 
-  createCurso: async (nome: string, sigla: string, unidade: string): Promise<Curso> => {
+  createCurso: async (nome: string): Promise<Curso> => {
     const { data, error } = await supabase
-      .from('cursos')
+      .from('courses')
       .insert({
         nome,
-        sigla,
-        unidade,
-        alunos_count: 0,
+        ativo: true,
       })
       .select()
       .single();
@@ -86,9 +84,9 @@ export const unidadesService = {
     return {
       id: data.id,
       nome: data.nome,
-      sigla: data.sigla || '',
-      unidade: data.unidade || '',
-      alunosCount: data.alunos_count || 0,
+      ativo: data.ativo,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
     };
   },
 };

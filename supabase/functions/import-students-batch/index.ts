@@ -182,6 +182,10 @@ Deno.serve(async (req: Request) => {
       else if (!isValidEmail(email)) errors.push(`Linha ${rowNum}, Coluna D: E-mail inválido '${email}'`)
       if (!campus) errors.push(`Linha ${rowNum}, Coluna E: Campus inválido '${campusRaw}'. Use: GRACAS, CAXANGA ou BOAVIAGEM`)
 
+      if (curso && !activeCourseNames.has(curso.trim().toLowerCase())) {
+        errors.push(`Linha ${rowNum}, Coluna C: Curso não encontrado ou inativo '${curso}'`)
+      }
+
       if (matricula && matriculaSeen.has(matricula)) {
         errors.push(`Linha ${rowNum}, Coluna A: Matrícula duplicada no arquivo (primeira ocorrência na linha ${matriculaSeen.get(matricula)})`)
       } else if (matricula) {
@@ -250,6 +254,14 @@ Deno.serve(async (req: Request) => {
     for (const u of existingAuthUsers?.users || []) {
       if (u.email) authByEmail.set(normalizeEmail(u.email), u.id)
     }
+
+    const { data: activeCourses } = await supabaseAdmin
+      .from('courses')
+      .select('nome')
+      .eq('ativo', true)
+    const activeCourseNames = new Set(
+      (activeCourses || []).map(c => c.nome.trim().toLowerCase())
+    )
 
     for (let i = 0; i < students.length; i++) {
       const s = students[i]
