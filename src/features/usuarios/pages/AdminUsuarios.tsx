@@ -779,8 +779,16 @@ export const AdminUsuarios: React.FC = () => {
                 return (
                   <tr key={user.id} className="hover:bg-slate-50/50">
                     <td className="px-4 py-3 font-bold text-slate-800">{user.nomeCompleto || user.nome}</td>
-                    <td className="px-4 py-3 text-[11px] font-mono">{user.matricula || '-'}</td>
-                    <td className="px-4 py-3 text-[11px]">{user.curso || '-'}</td>
+                    <td className="px-4 py-3 text-[11px] font-mono">
+                      {user.role === 'aluno'
+                        ? (user.matricula || <span className="text-amber-600 italic">Cadastro incompleto</span>)
+                        : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-[11px]">
+                      {user.role === 'aluno'
+                        ? (user.curso || <span className="text-amber-600 italic">Cadastro incompleto</span>)
+                        : '-'}
+                    </td>
                     <td className="px-4 py-3">{user.email}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${ROLE_CLASSES[user.role] || 'bg-slate-100 text-slate-500'}`}>
