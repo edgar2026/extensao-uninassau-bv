@@ -31,8 +31,6 @@ function encryptCode(code: string, secret: string): string {
   return btoa(encrypted + "|" + Array.from(iv).map(b => b.toString(16).padStart(2, "0")).join(""));
 }
 
-const VALID_CAMPUS = ["GRAÇAS", "CAXANGÁ", "BOA_VIAGEM"];
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -86,13 +84,41 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    const { first_name, last_name, email, role, project_id, campus } = body;
+    const {
+      first_name: rawFirstName,
+      last_name: rawLastName,
+      email,
+      role,
+      project_id,
+      campus: rawCampus,
+      matricula,
+      nome_completo,
+      curso,
+    } = body;
 
-    if (!first_name || !last_name || !email) {
+    if (!email) {
       return new Response(
-        JSON.stringify({
-          error: "first_name, last_name and email are required",
-        }),
+        JSON.stringify({ error: "email is required" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    const fullName = (nome_completo || "").trim();
+    let first_name = (rawFirstName || "").trim();
+    let last_name = (rawLastName || "").trim();
+
+    if (!first_name && fullName) {
+      const parts = fullName.split(/\s+/);
+      first_name = parts[0] || "";
+      last_name = parts.slice(1).join(" ");
+    }
+
+    if (!first_name) {
+      return new Response(
+        JSON.stringify({ error: "nome_completo or first_name is required" }),
         {
           status: 400,
           headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -102,6 +128,10 @@ Deno.serve(async (req: Request) => {
 
     const normalizedEmail = email.trim().toLowerCase();
     const targetRole = role || "aluno";
+    const campus = rawCampus || null;
+    const normalizedMatricula = matricula ? matricula.trim() : null;
+    const normalizedNomeCompleto = fullName || null;
+    const normalizedCurso = curso ? curso.trim() : null;
 
     if (callerProfile.role === "admin") {
       if (!["aluno", "professor", "admin"].includes(targetRole)) {
@@ -160,11 +190,35 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { data: existingProfile } = await supabaseAdmin
+    const { data: existingByEmail } = await supabaseAdmin
       .from("profiles")
       .select("id, active, role")
       .eq("email", normalizedEmail)
       .single();
+
+    let existingByMatricula: { id: string; active: boolean; role: string } | null = null;
+    if (normalizedMatricula && targetRole === "aluno") {
+      const { data: matProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("id, active, role")
+        .eq("matricula", normalizedMatricula)
+        .single();
+      existingByMatricula = matProfile;
+    }
+
+    if (existingByEmail && existingByMatricula && existingByEmail.id !== existingByMatricula.id) {
+      return new Response(
+        JSON.stringify({
+          error: "Matrícula e e-mail pertencem a pessoas diferentes.",
+        }),
+        {
+          status: 409,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    const existingProfile = existingByEmail || existingByMatricula;
 
     if (existingProfile) {
       if (
@@ -180,6 +234,18 @@ Deno.serve(async (req: Request) => {
             headers: { "Content-Type": "application/json", ...corsHeaders },
           }
         );
+      }
+
+      const updateData: Record<string, unknown> = {};
+      if (normalizedMatricula) updateData.matricula = normalizedMatricula;
+      if (normalizedNomeCompleto) updateData.nome_completo = normalizedNomeCompleto;
+      if (normalizedCurso) updateData.curso = normalizedCurso;
+
+      if (Object.keys(updateData).length > 0) {
+        await supabaseAdmin
+          .from("profiles")
+          .update(updateData)
+          .eq("id", existingProfile.id);
       }
 
       if (existingProfile.active && project_id && targetRole === "aluno") {
@@ -203,6 +269,7 @@ Deno.serve(async (req: Request) => {
         entity_id: existingProfile.id,
         metadata: {
           email: normalizedEmail,
+          matricula: normalizedMatricula,
           role: targetRole,
           project_id: project_id || null,
         },
@@ -229,18 +296,23 @@ Deno.serve(async (req: Request) => {
     );
 
     if (existingAuth) {
+      const profileData: Record<string, unknown> = {
+        id: existingAuth.id,
+        first_name,
+        last_name,
+        email: normalizedEmail,
+        role: targetRole,
+        active: true,
+        first_access_completed: false,
+        campus: campus || null,
+      };
+      if (normalizedMatricula) profileData.matricula = normalizedMatricula;
+      if (normalizedNomeCompleto) profileData.nome_completo = normalizedNomeCompleto;
+      if (normalizedCurso) profileData.curso = normalizedCurso;
+
       const { error: insertProfileError } = await supabaseAdmin
         .from("profiles")
-        .insert({
-          id: existingAuth.id,
-          first_name,
-          last_name,
-          email: normalizedEmail,
-          role: targetRole,
-          active: true,
-          first_access_completed: false,
-          campus: campus || null,
-        });
+        .insert(profileData);
 
       if (insertProfileError && !insertProfileError.message.includes("duplicate")) {
         throw insertProfileError;
@@ -276,34 +348,21 @@ Deno.serve(async (req: Request) => {
           created_by: callerProfile.id,
           max_attempts: MAX_ATTEMPTS,
         });
-
-        await supabaseAdmin.from("audit_logs").insert({
-          actor_id: callerProfile.id,
-          action: "create_managed_user",
-          entity_type: "profile",
-          entity_id: existingAuth.id,
-          metadata: {
-            email: normalizedEmail,
-            role: targetRole,
-            project_id: project_id || null,
-            campus: campus || null,
-          },
-        });
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            user_id: existingAuth.id,
-            reused: true,
-            message: "Existing auth user linked successfully",
-            code: plainCode,
-          }),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
       }
+
+      await supabaseAdmin.from("audit_logs").insert({
+        actor_id: callerProfile.id,
+        action: "create_managed_user",
+        entity_type: "profile",
+        entity_id: existingAuth.id,
+        metadata: {
+          email: normalizedEmail,
+          matricula: normalizedMatricula,
+          role: targetRole,
+          project_id: project_id || null,
+          campus: campus || null,
+        },
+      });
 
       return new Response(
         JSON.stringify({
@@ -311,6 +370,7 @@ Deno.serve(async (req: Request) => {
           user_id: existingAuth.id,
           reused: true,
           message: "Existing auth user linked successfully",
+          code: plainCode,
         }),
         {
           status: 200,
@@ -338,21 +398,23 @@ Deno.serve(async (req: Request) => {
       throw createError;
     }
 
+    const upsertData: Record<string, unknown> = {
+      id: newUser.user.id,
+      first_name,
+      last_name,
+      email: normalizedEmail,
+      role: targetRole,
+      active: true,
+      first_access_completed: false,
+      campus: campus || null,
+    };
+    if (normalizedMatricula) upsertData.matricula = normalizedMatricula;
+    if (normalizedNomeCompleto) upsertData.nome_completo = normalizedNomeCompleto;
+    if (normalizedCurso) upsertData.curso = normalizedCurso;
+
     const { error: upsertProfileError } = await supabaseAdmin
       .from("profiles")
-      .upsert(
-        {
-          id: newUser.user.id,
-          first_name,
-          last_name,
-          email: normalizedEmail,
-          role: targetRole,
-          active: true,
-          first_access_completed: false,
-          campus: campus || null,
-        },
-        { onConflict: "id" }
-      );
+      .upsert(upsertData, { onConflict: "id" });
 
     if (upsertProfileError) {
       throw upsertProfileError;
@@ -405,6 +467,7 @@ Deno.serve(async (req: Request) => {
       entity_id: newUser.user.id,
       metadata: {
         email: normalizedEmail,
+        matricula: normalizedMatricula,
         role: targetRole,
         project_id: project_id || null,
         campus: campus || null,
@@ -425,16 +488,14 @@ Deno.serve(async (req: Request) => {
         headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
-  } catch {
-    console.error("Error in create-managed-user");
+  } catch (error: any) {
+    console.error("Error in create-managed-user:", error);
     return new Response(
-      JSON.stringify({ error: "Erro interno ao criar usuário." }),
+      JSON.stringify({ error: error.message || "Internal server error" }),
       {
         status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders() },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       }
-    );
-  }
     );
   }
 });

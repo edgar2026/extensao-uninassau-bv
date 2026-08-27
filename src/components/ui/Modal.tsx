@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { X, AlertTriangle } from 'lucide-react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -13,6 +13,8 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  /** Se true, mostra confirmação antes de fechar (alterações não salvas) */
+  isDirty?: boolean;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -20,8 +22,11 @@ export const Modal: React.FC<ModalProps> = ({
   onClose,
   title,
   children,
-  size = 'md'
+  size = 'md',
+  isDirty = false,
 }) => {
+  const [showConfirm, setShowConfirm] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -33,6 +38,18 @@ export const Modal: React.FC<ModalProps> = ({
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const sizes: Record<string, string> = {
@@ -41,6 +58,23 @@ export const Modal: React.FC<ModalProps> = ({
     lg:   'max-w-2xl',
     xl:   'max-w-4xl',
     full: 'max-w-5xl',
+  };
+
+  const handleClose = () => {
+    if (isDirty) {
+      setShowConfirm(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleConfirmDiscard = () => {
+    setShowConfirm(false);
+    onClose();
+  };
+
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
   };
 
   const modal = (
@@ -57,7 +91,8 @@ export const Modal: React.FC<ModalProps> = ({
         background: 'rgba(3, 18, 43, 0.65)',
         backdropFilter: 'blur(4px)',
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseDown={handleOverlayClick}
+      onClick={handleOverlayClick}
     >
       <div
         className={`w-full ${sizes[size]} animate-slide-up`}
@@ -71,6 +106,7 @@ export const Modal: React.FC<ModalProps> = ({
           maxHeight: 'calc(100vh - 32px)',
           overflow: 'hidden',
         }}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
@@ -87,7 +123,7 @@ export const Modal: React.FC<ModalProps> = ({
             {title}
           </h3>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -125,6 +161,51 @@ export const Modal: React.FC<ModalProps> = ({
           {children}
         </div>
       </div>
+
+      {showConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            background: 'rgba(3, 18, 43, 0.85)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 max-w-sm w-full border border-slate-200 shadow-2xl animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-amber-100 rounded-full p-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              </div>
+              <h3 className="font-bold text-slate-900 text-sm">Descartar alterações?</h3>
+            </div>
+            <p className="text-slate-500 text-xs mb-6">
+              Existem alterações não salvas. Se fechar, as modificações serão perdidas.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowConfirm(false); }}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl uppercase tracking-wider transition"
+              >
+                Continuar editando
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleConfirmDiscard(); }}
+                className="flex-1 bg-rose-500 hover:bg-rose-400 text-white font-bold text-xs py-3 rounded-xl uppercase tracking-wider transition"
+              >
+                Descartar e fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 

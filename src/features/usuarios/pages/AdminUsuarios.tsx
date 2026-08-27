@@ -62,6 +62,9 @@ const PURPOSE_LABELS: Record<string, string> = {
 export const AdminUsuarios: React.FC = () => {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createStep, setCreateStep] = useState<'select' | 'form'>('select');
+  const [selectedRole, setSelectedRole] = useState<'aluno' | 'professor' | 'admin' | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [codeModalData, setCodeModalData] = useState<{ nome: string; email: string; purpose: string; code: string } | null>(null);
   const [codeLoading, setCodeLoading] = useState(false);
@@ -159,7 +162,7 @@ export const AdminUsuarios: React.FC = () => {
 
   const onSubmit = async (data: CreateUsuarioForm) => {
     setIsCreating(true);
-    setCodeError(null);
+    setCreateError(null);
     try {
       const result = await usuariosService.createUsuario(
         data.nome,
@@ -170,9 +173,10 @@ export const AdminUsuarios: React.FC = () => {
         data.role === 'aluno' ? data.curso : undefined
       );
       setShowCreateModal(false);
+      setCreateStep('select');
+      setSelectedRole(null);
       reset();
 
-      // Update list immediately
       await fetchUsuarios();
 
       if (result.code) {
@@ -185,7 +189,7 @@ export const AdminUsuarios: React.FC = () => {
         setShowCodeModal(true);
       }
     } catch (err: unknown) {
-      setCodeError(err instanceof Error ? err.message : 'Não foi possível criar o usuário.');
+      setCreateError(err instanceof Error ? err.message : 'Não foi possível criar o usuário.');
     } finally {
       setIsCreating(false);
     }
@@ -637,7 +641,7 @@ export const AdminUsuarios: React.FC = () => {
             <Upload className="h-4 w-4" /> Importar Alunos
           </button>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => { setShowCreateModal(true); setCreateStep('select'); setSelectedRole(null); setCreateError(null); reset(); }}
             className="bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/10"
           >
             <Plus className="h-4 w-4" /> Cadastrar Usuário
@@ -963,54 +967,110 @@ export const AdminUsuarios: React.FC = () => {
 
       {/* Create User Modal */}
       {showCreateModal && (
-        <PortalOverlay onClose={() => setShowCreateModal(false)}>
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full border border-slate-200 shadow-2xl flex flex-col gap-5 animate-slide-up">
+        <PortalOverlay onClose={() => { setShowCreateModal(false); setCreateStep('select'); setSelectedRole(null); setCreateError(null); }}>
+          <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-2xl flex flex-col gap-5 animate-slide-up" style={{ width: 'calc(100vw - 32px)', maxWidth: '560px' }}>
             <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm">Criar ou Recuperar Senha com Código</h3>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>
+              <h3 className="font-bold text-slate-900 text-sm">
+                {createStep === 'select' ? 'Qual tipo de usuário deseja cadastrar?' : `Cadastrar novo ${selectedRole === 'aluno' ? 'aluno' : selectedRole === 'professor' ? 'professor' : 'administrador'}`}
+              </h3>
+              <button onClick={() => { setShowCreateModal(false); setCreateStep('select'); setSelectedRole(null); setCreateError(null); }} className="text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>
             </div>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-xs">
-              <div className="flex flex-col gap-1.5">
-                <label className="font-semibold text-slate-600">Nome Completo</label>
-                <input type="text" placeholder="Nome completo do usuário" {...register('nome', { required: true })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500" />
+
+            {createStep === 'select' && (
+              <div className="flex flex-col gap-3">
+                <p className="text-slate-500 text-xs">Selecione o perfil para continuar:</p>
+                <button
+                  onClick={() => { setSelectedRole('aluno'); setCreateStep('form'); setCreateError(null); reset(); }}
+                  className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/50 transition text-left"
+                >
+                  <div className="bg-emerald-100 rounded-full p-2">
+                    <UserCheck className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 text-xs">Aluno</p>
+                    <p className="text-slate-400 text-[10px]">Matrícula, nome, curso, e-mail e campus</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => { setSelectedRole('professor'); setCreateStep('form'); setCreateError(null); reset(); }}
+                  className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition text-left"
+                >
+                  <div className="bg-indigo-100 rounded-full p-2">
+                    <ShieldCheck className="h-4 w-4 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 text-xs">Professor</p>
+                    <p className="text-slate-400 text-[10px]">Nome, e-mail e campus</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => { setSelectedRole('admin'); setCreateStep('form'); setCreateError(null); reset(); }}
+                  className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 hover:border-rose-400 hover:bg-rose-50/50 transition text-left"
+                >
+                  <div className="bg-rose-100 rounded-full p-2">
+                    <ShieldCheck className="h-4 w-4 text-rose-600" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 text-xs">Administrador</p>
+                    <p className="text-slate-400 text-[10px]">Nome, e-mail e campus</p>
+                  </div>
+                </button>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="font-semibold text-slate-600">E-mail Institucional</label>
-                <input type="email" placeholder="usuario@uninassau.br" {...register('email', { required: true })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="font-semibold text-slate-600">Perfil Funcional</label>
-                <select {...register('role')} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500">
-                  <option value="aluno">Aluno</option>
-                  <option value="professor">Professor</option>
-                  <option value="admin">Administrador</option>
-                </select>
-              </div>
-              {watch('role') === 'aluno' && (
-                <>
+            )}
+
+            {createStep === 'form' && selectedRole && (
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-xs">
+                {selectedRole === 'aluno' && (
                   <div className="flex flex-col gap-1.5">
                     <label className="font-semibold text-slate-600">Matrícula *</label>
-                    <input type="text" placeholder="Ex: 2024001001" {...register('matricula', { required: watch('role') === 'aluno' })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 font-mono" />
+                    <input type="text" placeholder="Ex: 2024001001" {...register('matricula', { required: true })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 font-mono" />
                   </div>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-600">Nome Completo *</label>
+                  <input type="text" placeholder="Nome completo do usuário" {...register('nome', { required: true })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500" />
+                </div>
+                {selectedRole === 'aluno' && (
                   <div className="flex flex-col gap-1.5">
                     <label className="font-semibold text-slate-600">Curso *</label>
-                    <input type="text" placeholder="Ex: Engenharia de Software" {...register('curso', { required: watch('role') === 'aluno' })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500" />
+                    <input type="text" placeholder="Ex: Engenharia de Software" {...register('curso', { required: true })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500" />
                   </div>
-                </>
-              )}
-              <div className="flex flex-col gap-1.5">
-                <label className="font-semibold text-slate-600">Campus</label>
-                <select {...register('unidade')} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500">
-                  <option value="GRAÇAS">UNINASSAU Graças</option>
-                  <option value="CAXANGÁ">UNINASSAU Caxangá</option>
-                  <option value="BOA_VIAGEM">UNINASSAU Boa Viagem</option>
-                </select>
-              </div>
-              <button type="submit" disabled={isCreating} className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs py-3 rounded-xl uppercase tracking-wider transition disabled:opacity-50 flex items-center justify-center gap-2">
-                {isCreating && <span className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />}
-                {isCreating ? 'Cadastrando...' : 'Cadastrar Usuário'}
-              </button>
-            </form>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-600">E-mail Institucional *</label>
+                  <input type="email" placeholder="usuario@uninassau.br" {...register('email', { required: true })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-600">Campus *</label>
+                  <select {...register('unidade', { required: true })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500">
+                    <option value="GRAÇAS">UNINASSAU Graças</option>
+                    <option value="CAXANGÁ">UNINASSAU Caxangá</option>
+                    <option value="BOA_VIAGEM">UNINASSAU Boa Viagem</option>
+                  </select>
+                </div>
+
+                {createError && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                    <p className="text-rose-700 text-xs font-semibold">{createError}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => { setCreateStep('select'); setSelectedRole(null); setCreateError(null); reset(); }}
+                    disabled={isCreating}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl uppercase tracking-wider transition disabled:opacity-50"
+                  >
+                    Voltar
+                  </button>
+                  <button type="submit" disabled={isCreating} className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs py-3 rounded-xl uppercase tracking-wider transition disabled:opacity-50 flex items-center justify-center gap-2">
+                    {isCreating && <span className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />}
+                    {isCreating ? 'Cadastrando...' : 'Cadastrar'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </PortalOverlay>
       )}
@@ -1177,7 +1237,7 @@ export const AdminUsuarios: React.FC = () => {
       {/* Edit User Modal */}
       {showEditModal && editUserData && (
         <PortalOverlay onClose={() => { setShowEditModal(false); setEditUserData(null); }}>
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full border border-slate-200 shadow-2xl flex flex-col gap-5 animate-slide-up">
+          <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-2xl flex flex-col gap-5 animate-slide-up" style={{ width: 'calc(100vw - 32px)', maxWidth: '560px' }}>
             <div className="flex justify-between items-center pb-2 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                 <Edit3 className="h-4 w-4 text-cyan-600" />

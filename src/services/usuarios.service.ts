@@ -205,7 +205,8 @@ export const usuariosService = {
     });
 
     if (error) {
-      throw new Error(error.message || 'Erro ao criar usuário');
+      const errData = (error as any).context || (error as any).data || {};
+      throw new Error(errData.error || error.message || 'Erro ao criar usuário');
     }
 
     if (!data.success) {
