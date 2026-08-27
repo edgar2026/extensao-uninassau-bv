@@ -15,8 +15,7 @@ import { Card } from '../../../components/ui/Card';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
 import { CertificadoTemplate } from '../components/CertificadoTemplate';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { generateCertificadoPdf } from '../utils/generatePdf';
 
 export const AlunoCertificados: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
@@ -98,28 +97,7 @@ export const AlunoCertificados: React.FC = () => {
         return;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const container = document.getElementById('aluno-pdf-capture-area');
-      if (!container) return;
-
-      const frenteEl = container.querySelector('.certificado-frente') as HTMLElement;
-      const versoEl = container.querySelector('.certificado-verso') as HTMLElement;
-
-      if (frenteEl && versoEl) {
-        const canvasFrente = await html2canvas(frenteEl, {
-          scale: 2, useCORS: true, allowTaint: true, backgroundColor: null
-        });
-        const canvasVerso = await html2canvas(versoEl, {
-          scale: 2, useCORS: true, allowTaint: true, backgroundColor: null
-        });
-
-        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-        pdf.addImage(canvasFrente.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 297, 210);
-        pdf.addPage();
-        pdf.addImage(canvasVerso.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 297, 210);
-        pdf.save(`certificado_${cert.codigoCertificado}.pdf`);
-      }
+      await generateCertificadoPdf(cert, 'aluno-pdf-capture-area');
     } catch (err) {
       console.error('Erro ao gerar PDF:', err);
     } finally {
@@ -302,23 +280,15 @@ export const AlunoCertificados: React.FC = () => {
                   setIsDownloading(true);
                   setCertParaDownload(cert);
                   setDownloadAssinatura(null);
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                  const container = document.getElementById('aluno-pdf-capture-area');
-                  if (!container) { setIsDownloading(false); return; }
-                  const frenteEl = container.querySelector('.certificado-frente') as HTMLElement;
-                  const versoEl = container.querySelector('.certificado-verso') as HTMLElement;
-                  if (frenteEl && versoEl) {
-                    const canvasFrente = await html2canvas(frenteEl, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: null });
-                    const canvasVerso = await html2canvas(versoEl, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: null });
-                    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-                    pdf.addImage(canvasFrente.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 297, 210);
-                    pdf.addPage();
-                    pdf.addImage(canvasVerso.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 297, 210);
-                    pdf.save(`certificado_${cert.codigoCertificado}.pdf`);
+                  try {
+                    await generateCertificadoPdf(cert, 'aluno-pdf-capture-area');
+                  } catch (err) {
+                    console.error('Erro ao gerar PDF:', err);
+                  } finally {
+                    setCertParaDownload(null);
+                    setDownloadAssinatura(null);
+                    setIsDownloading(false);
                   }
-                  setCertParaDownload(null);
-                  setDownloadAssinatura(null);
-                  setIsDownloading(false);
                 }}
                 className="bg-cyan-600 hover:bg-cyan-500 text-white"
               >
@@ -337,7 +307,7 @@ export const AlunoCertificados: React.FC = () => {
             position: 'absolute',
             left: '-9999px',
             top: '-9999px',
-            width: '1122px',
+            width: '900px',
             zIndex: -1000,
           }}
         >

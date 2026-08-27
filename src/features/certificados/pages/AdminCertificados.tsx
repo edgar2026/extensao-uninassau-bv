@@ -9,12 +9,11 @@ import { certificadosService } from '../../../services/certificados.service';
 import { usuariosService } from '../../../services/usuarios.service';
 import { AssinaturaDigital, Certificado } from '../../../types';
 import {
-  CheckCircle, Plus, X, GraduationCap, Download, ShieldOff, ShieldCheck,
+  Plus, X, Download, ShieldOff, ShieldCheck,
   Building2, AlertTriangle
 } from 'lucide-react';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { CertificadoTemplate } from '../components/CertificadoTemplate';
+import { generateCertificadoPdf } from '../utils/generatePdf';
 import { PortalOverlay } from '../../../components/ui/PortalOverlay';
 
 const UNIDADES = [
@@ -22,30 +21,6 @@ const UNIDADES = [
   'Boa Viagem',
   'Caxangá',
 ];
-
-const formatFullDatePT = (dateStr: string) => {
-  if (!dateStr) return '';
-  const date = new Date(dateStr + 'T00:00:00');
-  const months = [
-    'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO',
-    'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'
-  ];
-  return `${date.getDate()} DE ${months[date.getMonth()]} DE ${date.getFullYear()}`;
-};
-
-const formatPeriodPT = (startStr: string, endStr: string) => {
-  if (!startStr || !endStr) return '';
-  const start = new Date(startStr + 'T00:00:00');
-  const end = new Date(endStr + 'T00:00:00');
-  const months = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-  ];
-  const formatMonth = (d: Date) => {
-    return months[d.getMonth()];
-  };
-  return `${formatMonth(start)} de ${start.getFullYear()} a ${formatMonth(end)} de ${end.getFullYear()}`;
-};
 
 export const AdminCertificados: React.FC = () => {
   const [certificados, setCertificados] = useState<Certificado[]>([]);
@@ -123,28 +98,7 @@ export const AdminCertificados: React.FC = () => {
         return;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const container = document.getElementById('pdf-download-capture-area');
-      if (!container) return;
-
-      const frenteEl = container.querySelector('.certificado-frente') as HTMLElement;
-      const versoEl = container.querySelector('.certificado-verso') as HTMLElement;
-
-      if (frenteEl && versoEl) {
-        const canvasFrente = await html2canvas(frenteEl, {
-          scale: 2, useCORS: true, allowTaint: true, backgroundColor: null
-        });
-        const canvasVerso = await html2canvas(versoEl, {
-          scale: 2, useCORS: true, allowTaint: true, backgroundColor: null
-        });
-
-        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-        pdf.addImage(canvasFrente.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 297, 210);
-        pdf.addPage();
-        pdf.addImage(canvasVerso.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 297, 210);
-        pdf.save(`certificado_${cert.codigoCertificado}.pdf`);
-      }
+      await generateCertificadoPdf(cert, 'pdf-download-capture-area');
     } catch (err) {
       console.error('Erro ao gerar PDF:', err);
     } finally {
@@ -423,23 +377,15 @@ export const AdminCertificados: React.FC = () => {
                   setIsDownloading(true);
                   setCertParaDownload(cert);
                   setDownloadAssinatura(null);
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                  const container = document.getElementById('pdf-download-capture-area');
-                  if (!container) { setIsDownloading(false); return; }
-                  const frenteEl = container.querySelector('.certificado-frente') as HTMLElement;
-                  const versoEl = container.querySelector('.certificado-verso') as HTMLElement;
-                  if (frenteEl && versoEl) {
-                    const canvasFrente = await html2canvas(frenteEl, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: null });
-                    const canvasVerso = await html2canvas(versoEl, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: null });
-                    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-                    pdf.addImage(canvasFrente.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 297, 210);
-                    pdf.addPage();
-                    pdf.addImage(canvasVerso.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 297, 210);
-                    pdf.save(`certificado_${cert.codigoCertificado}.pdf`);
+                  try {
+                    await generateCertificadoPdf(cert, 'pdf-download-capture-area');
+                  } catch (err) {
+                    console.error('Erro ao gerar PDF:', err);
+                  } finally {
+                    setCertParaDownload(null);
+                    setDownloadAssinatura(null);
+                    setIsDownloading(false);
                   }
-                  setCertParaDownload(null);
-                  setDownloadAssinatura(null);
-                  setIsDownloading(false);
                 }}
                 className="text-xs bg-amber-500 hover:bg-amber-400 text-white px-4 py-2 rounded-xl font-bold cursor-pointer transition"
               >
@@ -570,7 +516,7 @@ export const AdminCertificados: React.FC = () => {
             position: 'absolute',
             left: '-9999px',
             top: '-9999px',
-            width: '1122px',
+            width: '900px',
             zIndex: -1000
           }}
         >
