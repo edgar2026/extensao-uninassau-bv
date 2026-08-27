@@ -42,8 +42,7 @@ const formatPeriodPT = (startStr: string, endStr: string) => {
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
   const formatMonth = (d: Date) => {
-    const m = months[d.getMonth()];
-    return m === 'Fevereiro' ? 'Feve' : m;
+    return months[d.getMonth()];
   };
   return `${formatMonth(start)} de ${start.getFullYear()} a ${formatMonth(end)} de ${end.getFullYear()}`;
 };

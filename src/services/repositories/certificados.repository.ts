@@ -224,7 +224,9 @@ export const certificadosRepository = {
     project_id: string;
     codigo_certificado: string;
   }): Promise<CertificateRow> => {
-    const publicCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const { data: pubData, error: pubError } = await supabase.rpc('generate_unique_public_code');
+    if (pubError) throw new AppError(`Erro ao gerar código de autenticação: ${pubError.message}`, 500);
+    const publicCode = pubData as string;
 
     const { data, error } = await supabase
       .from('certificates')
@@ -233,6 +235,7 @@ export const certificadosRepository = {
         project_id: payload.project_id,
         public_code: publicCode,
         codigo_certificado: payload.codigo_certificado,
+        validation_uuid: crypto.randomUUID(),
         status: 'valido',
       })
       .select()
@@ -248,7 +251,7 @@ export const certificadosRepository = {
       id: view.id,
       projetoId: view.project_id,
       codigoAutenticacao: view.public_code,
-      codigoCertificado: view.codigo_certificado || `CERT-${new Date(view.issued_at).getFullYear()}-000`,
+      codigoCertificado: view.codigo_certificado || '',
       alunoNome: view.student_name,
       alunoMatricula: view.student_id,
       alunoCpfLast6: '000000',

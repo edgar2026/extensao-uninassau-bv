@@ -139,11 +139,13 @@ export const certificadosService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
 
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let publicCode = '';
-    for (let i = 0; i < 8; i++) {
-      publicCode += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    const { data: codeData, error: codeError } = await supabase.rpc('generate_sequential_cert_code');
+    if (codeError) throw new AppError(`Erro ao gerar código do certificado: ${codeError.message}`);
+    const codigoCert = codeData as string;
+
+    const { data: pubData, error: pubError } = await supabase.rpc('generate_unique_public_code');
+    if (pubError) throw new AppError(`Erro ao gerar código de autenticação: ${pubError.message}`);
+    const publicCode = pubData as string;
 
     const { data, error } = await supabase
       .from('certificates')
@@ -151,7 +153,7 @@ export const certificadosService = {
         student_id: null,
         project_id: null,
         public_code: publicCode,
-        codigo_certificado: publicCode,
+        codigo_certificado: codigoCert,
         validation_uuid: crypto.randomUUID(),
         status: 'valido',
       })
@@ -160,12 +162,12 @@ export const certificadosService = {
 
     if (error) throw new AppError(`Erro ao emitir certificado: ${error.message}`);
 
-    await auditoriaService.logAuditoria('Administrativo', 'admin', `Emitiu certificado avulso ${publicCode} para ${payload.alunoNome}`);
+    await auditoriaService.logAuditoria('Administrativo', 'admin', `Emitiu certificado avulso ${codigoCert} para ${payload.alunoNome}`);
 
     return {
       id: data.id,
       codigoAutenticacao: publicCode,
-      codigoCertificado: publicCode,
+      codigoCertificado: codigoCert,
       alunoNome: payload.alunoNome,
       alunoMatricula: payload.alunoMatricula,
       alunoCpfLast6: payload.alunoCpfLast6 || '000000',
