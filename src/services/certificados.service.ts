@@ -104,12 +104,16 @@ export const certificadosService = {
 
     const { data: profProfile } = await supabase
       .from('profiles')
-      .select('id, first_name, last_name, nome_completo')
+      .select('id, first_name, last_name, nome_completo, titulacao')
       .eq('id', projeto.professorId)
       .single();
 
     if (!profProfile) {
       throw new AppError('Não foi possível gerar o certificado porque o perfil do professor orientador não foi encontrado.');
+    }
+
+    if (!profProfile.titulacao) {
+      throw new AppError('Não foi possível gerar o certificado porque o professor orientador não possui titulação cadastrada. Solicite ao administrador que preencha o campo de titulação no cadastro do professor.');
     }
 
     const profName = profProfile.nome_completo || `${profProfile.first_name} ${profProfile.last_name}`.trim();

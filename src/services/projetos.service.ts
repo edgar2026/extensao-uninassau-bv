@@ -596,4 +596,49 @@ export const projetosService = {
       sizeBytes: doc.size_bytes,
     };
   },
+
+  deleteProjeto: async (id: string): Promise<void> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuário não autenticado.');
+
+    const { data: existing, error: fetchError } = await supabase
+      .from('projects')
+      .select('status, professor_id, title')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !existing) throw new Error('Projeto não encontrado.');
+    if (existing.professor_id !== user.id) throw new Error('Você não tem permissão para excluir este projeto.');
+    if (existing.status !== 'rascunho') {
+      throw new Error('Apenas projetos em rascunho podem ser excluídos.');
+    }
+
+    const { data: docs } = await supabase
+      .from('project_documents')
+      .select('storage_path')
+      .eq('project_id', id);
+
+    if (docs && docs.length > 0) {
+      const paths = docs.map(d => d.storage_path).filter(Boolean);
+      if (paths.length > 0) {
+        await supabase.storage.from(DOCUMENTS_BUCKET).remove(paths);
+      }
+    }
+
+    await supabase.from('project_documents').delete().eq('project_id', id);
+    await supabase.from('project_participants').delete().eq('project_id', id);
+
+    const { error: deleteError } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) throw new Error(`Erro ao excluir projeto: ${deleteError.message}`);
+
+    await auditoriaService.logAuditoria(
+      user.email || 'Professor',
+      'professor',
+      `Excluiu o projeto ${existing.title} (era um rascunho)`
+    );
+  },
 };

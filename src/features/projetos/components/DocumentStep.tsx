@@ -262,7 +262,7 @@ export const DocumentStep: React.FC<DocumentStepProps> = ({
                 type="button"
                 onClick={() => handleViewPdf(activeDoc)}
                 className="text-cyan-600 hover:text-cyan-800 p-1 cursor-pointer"
-                title="Visualizar"
+                title="Visualizar PDF"
               >
                 <Eye className="h-3.5 w-3.5" />
               </button>
@@ -271,7 +271,7 @@ export const DocumentStep: React.FC<DocumentStepProps> = ({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="text-amber-600 hover:text-amber-800 p-1 cursor-pointer"
-                  title="Substituir"
+                  title="Substituir PDF"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
@@ -288,6 +288,11 @@ export const DocumentStep: React.FC<DocumentStepProps> = ({
               )}
             </div>
           </div>
+          {!isEditable && (
+            <p className="text-[10px] text-slate-400 italic">
+              PDF bloqueado para substituição após envio.
+            </p>
+          )}
         </div>
       )}
 

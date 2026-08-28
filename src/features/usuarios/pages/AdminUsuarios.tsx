@@ -8,7 +8,7 @@ import { useForm } from 'react-hook-form';
 import { usuariosService } from '../../../services/usuarios.service';
 import { cursosService, Course } from '../../../services/cursos.service';
 import { supabase } from '../../../lib/supabase';
-import { StudentImportRow, StudentImportResult, Usuario, UserRole, CampusCode } from '../../../types';
+import { StudentImportRow, StudentImportResult, Usuario, UserRole, CampusCode, TitulacaoProfessor, TITULACAO_OPTIONS } from '../../../types';
 
 interface CreateUsuarioForm {
   nome: string;
@@ -17,6 +17,7 @@ interface CreateUsuarioForm {
   unidade: CampusCode;
   matricula?: string;
   curso?: string;
+  titulacao?: TitulacaoProfessor;
 }
 import {
   Plus, Trash2, X, KeyRound, Clock, CheckCircle, Copy, AlertCircle,
@@ -107,6 +108,7 @@ export const AdminUsuarios: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editUserData, setEditUserData] = useState<Usuario | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const [showResetRequestsModal, setShowResetRequestsModal] = useState(false);
   const [pendingResets, setPendingResets] = useState<{ id: string; user_id: string; email: string; created_at: string }[]>([]);
@@ -177,7 +179,8 @@ export const AdminUsuarios: React.FC = () => {
         data.role,
         data.unidade,
         data.role === 'aluno' ? data.matricula : undefined,
-        data.role === 'aluno' ? data.curso : undefined
+        data.role === 'aluno' ? data.curso : undefined,
+        data.role === 'professor' ? data.titulacao : undefined
       );
       setShowCreateModal(false);
       setCreateStep('select');
@@ -254,6 +257,7 @@ export const AdminUsuarios: React.FC = () => {
   };
 
   const handleEditUser = (user: Usuario) => {
+    setEditError(null);
     setEditUserData(user);
     setShowEditModal(true);
   };
@@ -261,23 +265,26 @@ export const AdminUsuarios: React.FC = () => {
   const handleSaveEdit = async () => {
     if (!editUserData) return;
     setEditLoading(true);
+    setEditError(null);
     try {
+      const nomeCompleto = (editUserData.nomeCompleto || editUserData.nome || '').trim();
       await usuariosService.updateUser(editUserData.id, {
-        first_name: editUserData.firstName,
-        last_name: editUserData.lastName,
+        nome_completo: nomeCompleto || null,
         campus: editUserData.campus,
         role: editUserData.role,
         ...(editUserData.role === 'aluno' ? {
           matricula: editUserData.matricula || null,
           curso: editUserData.curso || null,
-          nome_completo: editUserData.nomeCompleto || null,
+        } : {}),
+        ...(editUserData.role === 'professor' ? {
+          titulacao: editUserData.titulacao || null,
         } : {}),
       });
       setShowEditModal(false);
       setEditUserData(null);
       await fetchUsuarios();
     } catch (err: unknown) {
-      setCodeError(err instanceof Error ? err.message : 'Erro ao atualizar usuário.');
+      setEditError(err instanceof Error ? err.message : 'Erro ao atualizar usuário.');
     } finally {
       setEditLoading(false);
     }
@@ -727,6 +734,7 @@ export const AdminUsuarios: React.FC = () => {
                 <th className="px-4 py-3.5 align-middle whitespace-nowrap">Nome completo</th>
                 <th className="px-4 py-3.5 align-middle whitespace-nowrap">Matrícula</th>
                 <th className="px-4 py-3.5 align-middle whitespace-nowrap">Curso</th>
+                <th className="px-4 py-3.5 align-middle whitespace-nowrap">Titulação</th>
                 <th className="px-4 py-3.5 align-middle whitespace-nowrap">E-mail</th>
                 <th className="px-4 py-3.5 align-middle whitespace-nowrap">Perfil</th>
                 <th className="px-4 py-3.5 align-middle whitespace-nowrap">Campus</th>
@@ -787,6 +795,11 @@ export const AdminUsuarios: React.FC = () => {
                     <td className="px-4 py-3 text-[11px] align-middle whitespace-nowrap">
                       {user.role === 'aluno'
                         ? (user.curso || <span className="text-amber-600 italic">Cadastro incompleto</span>)
+                        : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-[11px] align-middle whitespace-nowrap">
+                      {user.role === 'professor'
+                        ? (user.titulacao || <span className="text-amber-600 italic">Cadastro incompleto</span>)
                         : '-'}
                     </td>
                     <td className="px-4 py-3 align-middle whitespace-nowrap">{user.email}</td>
@@ -1067,6 +1080,17 @@ export const AdminUsuarios: React.FC = () => {
                   <label className="font-semibold text-slate-600">E-mail Institucional *</label>
                   <input type="email" placeholder="usuario@uninassau.br" {...register('email', { required: true })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500" />
                 </div>
+                {selectedRole === 'professor' && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-semibold text-slate-600">Titulação *</label>
+                    <select {...register('titulacao', { required: true })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 text-xs">
+                      <option value="">Selecione a titulação</option>
+                      {TITULACAO_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex flex-col gap-1.5">
                   <label className="font-semibold text-slate-600">Campus *</label>
                   <select {...register('unidade', { required: true })} className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500">
@@ -1275,32 +1299,12 @@ export const AdminUsuarios: React.FC = () => {
               </button>
             </div>
             <div className="space-y-4 text-xs">
-              {editUserData.role === 'aluno' && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-semibold text-slate-600">Nome Completo</label>
-                  <input
-                    type="text"
-                    value={editUserData.nomeCompleto || editUserData.nome || ''}
-                    onChange={e => setEditUserData({ ...editUserData, nomeCompleto: e.target.value })}
-                    className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500"
-                  />
-                </div>
-              )}
               <div className="flex flex-col gap-1.5">
-                <label className="font-semibold text-slate-600">Nome</label>
+                <label className="font-semibold text-slate-600">Nome Completo</label>
                 <input
                   type="text"
-                  value={editUserData.firstName || ''}
-                  onChange={e => setEditUserData({ ...editUserData, firstName: e.target.value })}
-                  className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="font-semibold text-slate-600">Sobrenome</label>
-                <input
-                  type="text"
-                  value={editUserData.lastName || ''}
-                  onChange={e => setEditUserData({ ...editUserData, lastName: e.target.value })}
+                  value={editUserData.nomeCompleto || editUserData.nome || ''}
+                  onChange={e => setEditUserData({ ...editUserData, nomeCompleto: e.target.value })}
                   className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500"
                 />
               </div>
@@ -1342,6 +1346,21 @@ export const AdminUsuarios: React.FC = () => {
                   <option value="BOA_VIAGEM">UNINASSAU Boa Viagem</option>
                 </select>
               </div>
+              {editUserData.role === 'professor' && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-600">Titulação *</label>
+                  <select
+                    value={editUserData.titulacao || ''}
+                    onChange={e => setEditUserData({ ...editUserData, titulacao: e.target.value as TitulacaoProfessor })}
+                    className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 text-xs"
+                  >
+                    <option value="">Selecione a titulação</option>
+                    {TITULACAO_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex flex-col gap-1.5">
                 <label className="font-semibold text-slate-600">Perfil</label>
                 <select
@@ -1354,6 +1373,11 @@ export const AdminUsuarios: React.FC = () => {
                   <option value="admin">Administrador</option>
                 </select>
               </div>
+              {editError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5">
+                  <p className="text-[11px] text-rose-700 font-medium">{editError}</p>
+                </div>
+              )}
               <button
                 onClick={handleSaveEdit}
                 disabled={editLoading}

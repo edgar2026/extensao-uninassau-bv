@@ -12,7 +12,7 @@ import {
 } from '../../../types';
 import {
   Plus, X, CheckCircle, FileText, AlertTriangle, Lock,
-  Eye, Edit3, Send, Download, ChevronRight, ChevronLeft, FileSpreadsheet
+  Eye, Edit3, Send, Download, ChevronRight, ChevronLeft, Trash2
 } from 'lucide-react';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
@@ -51,6 +51,8 @@ export const ProfessorProjetos: React.FC = () => {
   const [msgSucesso, setMsgSucesso] = useState<string | null>(null);
   const [msgErro, setMsgErro] = useState<string | null>(null);
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
+  const [deletingProjeto, setDeletingProjeto] = useState<Projeto | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchProjetos = useCallback(async () => {
     if (user) {
@@ -192,6 +194,38 @@ export const ProfessorProjetos: React.FC = () => {
     } catch (err: any) {
       setMsgErro(err.message || 'Erro ao enviar projeto.');
       setTimeout(() => setMsgErro(null), 4000);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingProjeto) return;
+    setIsDeleting(true);
+    try {
+      await projetosService.deleteProjeto(deletingProjeto.id);
+      setDeletingProjeto(null);
+      fetchProjetos();
+      setMsgSucesso(`Projeto "${deletingProjeto.nome}" excluído com sucesso!`);
+      setTimeout(() => setMsgSucesso(null), 4000);
+    } catch (err: any) {
+      setMsgErro(err.message || 'Erro ao excluir projeto.');
+      setTimeout(() => setMsgErro(null), 4000);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const canAdvanceStep = (): boolean => {
+    switch (currentStep) {
+      case 0:
+        return Boolean(nome.trim() && campus && descricao.trim() && dataInicio && dataTermino && cargaHoraria > 0);
+      case 1:
+        return alunosForm.length >= 1;
+      case 2:
+        return docsForm.some(d => d.active);
+      case 3:
+        return canSubmit;
+      default:
+        return false;
     }
   };
 
@@ -357,28 +391,38 @@ export const ProfessorProjetos: React.FC = () => {
                       <Eye className="h-3.5 w-3.5" /> Detalhes
                     </button>
 
-                    {canEdit ? (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleOpenEditarModal(proj)}
-                          className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-amber-200 transition cursor-pointer"
-                        >
-                          <Edit3 className="h-3.5 w-3.5" /> {proj.status === 'correcao_solicitada' ? 'Corrigir' : 'Editar'}
-                        </button>
-                        {proj.status === 'rascunho' && (
+                    <div className="flex items-center gap-2">
+                      {canEdit ? (
+                        <>
                           <button
-                            onClick={() => handleEnviarDireto(proj)}
-                            className="flex items-center gap-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer shadow-sm"
+                            onClick={() => handleOpenEditarModal(proj)}
+                            className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-amber-200 transition cursor-pointer"
                           >
-                            <Send className="h-3.5 w-3.5" /> Enviar
+                            <Edit3 className="h-3.5 w-3.5" /> {proj.status === 'correcao_solicitada' ? 'Corrigir' : 'Editar'}
                           </button>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200">
-                        <Lock className="h-3 w-3" /> Bloqueado
-                      </span>
-                    )}
+                          {proj.status === 'rascunho' && (
+                            <>
+                              <button
+                                onClick={() => handleEnviarDireto(proj)}
+                                className="flex items-center gap-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer shadow-sm"
+                              >
+                                <Send className="h-3.5 w-3.5" /> Enviar
+                              </button>
+                              <button
+                                onClick={() => setDeletingProjeto(proj)}
+                                className="flex items-center gap-1 bg-rose-50 hover:bg-rose-100 text-rose-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-rose-200 transition cursor-pointer"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" /> Excluir
+                              </button>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200">
+                          <Lock className="h-3 w-3" /> Bloqueado
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -512,8 +556,9 @@ export const ProfessorProjetos: React.FC = () => {
               {currentStep < WIZARD_STEPS.length - 1 ? (
                 <button
                   type="button"
+                  disabled={!canAdvanceStep()}
                   onClick={() => setCurrentStep(s => s + 1)}
-                  className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-4 py-2 rounded-xl font-bold cursor-pointer text-xs flex items-center gap-1"
+                  className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-4 py-2 rounded-xl font-bold cursor-pointer text-xs flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Próximo <ChevronRight className="h-3.5 w-3.5" />
                 </button>
@@ -530,7 +575,7 @@ export const ProfessorProjetos: React.FC = () => {
                   <button
                     type="button"
                     disabled={isSaving || !canSubmit}
-                    onClick={() => handleSaveForm('enviado')}
+                    onClick={() => handleSaveForm(editingId && projetos.find(p => p.id === editingId)?.status === 'correcao_solicitada' ? 'reenviado' : 'enviado')}
                     className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-5 py-2 rounded-xl font-bold shadow-lg shadow-cyan-500/10 cursor-pointer disabled:opacity-50 text-xs flex items-center gap-1.5"
                   >
                     {isSaving ? (
@@ -538,7 +583,9 @@ export const ProfessorProjetos: React.FC = () => {
                     ) : (
                       <Send className="h-3.5 w-3.5" />
                     )}
-                    Enviar para Análise
+                    {editingId && projetos.find(p => p.id === editingId)?.status === 'correcao_solicitada'
+                      ? 'Reenviar para Análise'
+                      : 'Enviar para Análise'}
                   </button>
                 </>
               )}
@@ -642,6 +689,58 @@ export const ProfessorProjetos: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* Modal de Confirmação de Exclusão */}
+      <Modal
+        isOpen={Boolean(deletingProjeto)}
+        onClose={() => { if (!isDeleting) setDeletingProjeto(null); }}
+        title="Confirmar Exclusão"
+        size="sm"
+      >
+        <div className="space-y-4 text-xs text-left">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+              <Trash2 className="h-5 w-5 text-rose-600" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-800 mb-1">Tem certeza que deseja excluir este projeto?</p>
+              <p className="text-slate-500">
+                O projeto <strong className="text-slate-700">"{deletingProjeto?.nome}"</strong> será removido permanentemente. Esta ação não pode ser desfeita.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+            <p className="text-rose-700 text-[11px] font-medium">
+              Todos os dados, participantes e documentos anexados serão excluídos.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              disabled={isDeleting}
+              onClick={() => setDeletingProjeto(null)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={isDeleting}
+              onClick={handleConfirmDelete}
+              className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {isDeleting ? (
+                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              Excluir Projeto
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

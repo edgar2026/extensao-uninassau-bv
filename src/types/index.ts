@@ -7,6 +7,16 @@ export type UserRole = 'admin' | 'professor' | 'aluno';
 
 export type CampusCode = 'GRAÇAS' | 'CAXANGÁ' | 'BOA_VIAGEM';
 
+export type TitulacaoProfessor = 'Graduado(a)' | 'Especialista' | 'Mestre(a)' | 'Doutor(a)' | 'Pós-Doutor(a)';
+
+export const TITULACAO_OPTIONS: { value: TitulacaoProfessor; label: string; abreviacao: string }[] = [
+  { value: 'Graduado(a)', label: 'Graduado(a)', abreviacao: 'Prof.' },
+  { value: 'Especialista', label: 'Especialista', abreviacao: 'Prof. Esp.' },
+  { value: 'Mestre(a)', label: 'Mestre(a)', abreviacao: 'Prof. Me.' },
+  { value: 'Doutor(a)', label: 'Doutor(a)', abreviacao: 'Prof. Dr.' },
+  { value: 'Pós-Doutor(a)', label: 'Pós-Doutor(a)', abreviacao: 'Prof. Dr.' },
+];
+
 export const CAMPUS_OPTIONS: { value: CampusCode; label: string; xlsx: string }[] = [
   { value: 'GRAÇAS', label: 'UNINASSAU Graças', xlsx: 'GRACAS' },
   { value: 'CAXANGÁ', label: 'UNINASSAU Caxangá', xlsx: 'CAXANGA' },
@@ -43,6 +53,7 @@ export interface Profile {
   matricula?: string | null;
   nome_completo?: string | null;
   curso?: string | null;
+  titulacao?: TitulacaoProfessor | null;
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +84,7 @@ export interface Usuario {
   matricula?: string | null;
   nomeCompleto?: string | null;
   curso?: string | null;
+  titulacao?: TitulacaoProfessor | null;
   accessStatus?: UserAccessStatus;
   createdAt?: string;
   resetRequestDate?: string;
@@ -309,6 +321,7 @@ export interface SupabaseProfileRow {
   matricula: string | null;
   nome_completo: string | null;
   curso: string | null;
+  titulacao: TitulacaoProfessor | null;
   archived_at: string | null;
   credentials_updated_at: string | null;
 }

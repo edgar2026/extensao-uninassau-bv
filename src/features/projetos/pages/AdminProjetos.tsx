@@ -201,9 +201,12 @@ export const AdminProjetos: React.FC = () => {
     }
   };
 
-  const enviadosPendenteCount = projetos.filter(p => p.status === 'enviado').length;
+  const enviadosPendenteCount = projetos.filter(p =>
+    p.status === 'enviado' || p.status === 'reenviado' || p.status === 'correcao_solicitada'
+  ).length;
 
   const filteredProjetos = projetos.filter(p => {
+    if (p.status === 'rascunho') return false;
     const isAreaMatch = activeTab === 'extensao' ? p.areaTematica === 'Extensão' : p.areaTematica === 'IC';
     if (!isAreaMatch) return false;
     if (statusFilter !== 'todos' && p.status !== statusFilter) return false;
@@ -340,10 +343,9 @@ export const AdminProjetos: React.FC = () => {
               <option value="todos">Todos</option>
               <option value="enviado">Enviados ({projetos.filter(p => p.status === 'enviado').length})</option>
               <option value="reenviado">Reenviados ({projetos.filter(p => p.status === 'reenviado').length})</option>
-              <option value="correcao_solicitada">Correção Solicitada</option>
+              <option value="correcao_solicitada">Correção Solicitada ({projetos.filter(p => p.status === 'correcao_solicitada').length})</option>
               <option value="aprovado">Aprovados</option>
               <option value="rejeitado">Rejeitados</option>
-              <option value="rascunho">Rascunhos</option>
             </select>
           </div>
 

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { AssinaturaDigital, Certificado } from '../../../types';
+import { AssinaturaDigital, Certificado, TITULACAO_OPTIONS } from '../../../types';
 
 const formatFullDatePT = (dateStr: string) => {
   if (!dateStr) return '';
@@ -40,7 +40,10 @@ export const CertificadoTemplate: React.FC<{
 }> = ({ cert, assinatura, className = '' }) => {
   const reitoria = assinatura;
 
-  const validationUrl = `${window.location.origin}/validar?codigo=${cert.codigoAutenticacao}`;
+  const titulacaoAbreviada =
+    TITULACAO_OPTIONS.find(o => o.value === cert.titulacaoProfessor)?.abreviacao || 'Prof.';
+
+  const validationUrl = `https://extensao-uninassau.vercel.app/validar?codigo=${cert.codigoAutenticacao}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=002D54&bgcolor=FAF6F0&data=${encodeURIComponent(validationUrl)}`;
 
   // ── Inline styles for premium elements ─────────────────────────────────────
@@ -168,8 +171,21 @@ export const CertificadoTemplate: React.FC<{
           <div style={{ width: '160px', height: '1.5px', background: goldGradientSubtle, margin: '4px 0' }} />
         </div>
 
+        {/* ── LOGO EXTENSÃO (secundária, topo esquerdo dentro da moldura) ── */}
+        <div
+          className="absolute z-[5] pointer-events-none"
+          style={{ top: '56px', left: '48px' }}
+        >
+          <img
+            src="/assets/certificado/logo-extensao.png"
+            alt="Logo Extensão"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            style={{ height: '84px', width: 'auto', objectFit: 'contain', display: 'block', background: 'transparent' }}
+          />
+        </div>
+
         {/* ── TÍTULO PRINCIPAL ────────────────────────────────────────────── */}
-        <div className="relative z-10 my-2">
+        <div className="relative z-10 flex flex-col items-center justify-center" style={{ height: '92px' }}>
           <h1 className="cert-cinzel cert-gold-text" style={{ fontSize: '52px', fontWeight: '900', letterSpacing: '0.14em', textTransform: 'uppercase', lineHeight: '1.1' }}>
             CERTIFICADO
           </h1>
@@ -181,12 +197,25 @@ export const CertificadoTemplate: React.FC<{
             Certificamos, para os devidos fins de direito e cumprimento das normas acadêmicas, que{' '}
             <strong className="cert-cinzel" style={{ fontSize: '17px', fontWeight: '700', color: deepNavy }}>
               {cert.alunoNome.toUpperCase()}
-            </strong>,
+            </strong>
+            {cert.alunoMatricula ? (
+              <>, matrícula nº {cert.alunoMatricula}</>
+            ) : (
+              <>, matrícula não informada — cadastro do aluno incompleto</>
+            )},
             participou com êxito do projeto de extensão intitulado{' '}
             <strong className="cert-playfair" style={{ fontStyle: 'italic', fontWeight: '600', color: midNavy }}>
               "{cert.projetoNome}"
             </strong>,
-            sob orientação de <strong className="cert-montserrat" style={{ fontWeight: '600', color: deepNavy }}>{cert.professorResponsavel ? `Prof. ${cert.professorResponsavel}` : 'Professor não definido'}</strong>,
+            sob orientação de <strong className="cert-montserrat" style={{ fontWeight: '600', color: deepNavy }}>
+              {!cert.professorResponsavel && !cert.titulacaoProfessor
+                ? 'cadastro do orientador incompleto (nome e titulação não informados)'
+                : !cert.titulacaoProfessor
+                  ? `${cert.professorResponsavel.toUpperCase()} — cadastro do orientador incompleto (titulação não informada)`
+                  : !cert.professorResponsavel
+                    ? 'cadastro do orientador incompleto (nome não informado)'
+                    : `${titulacaoAbreviada} ${cert.professorResponsavel.toUpperCase()}`}
+            </strong>,
             no período de <span className="cert-montserrat" style={{ fontWeight: '600', fontSize: '13px' }}>{formatPeriodPT(cert.dataInicio, cert.dataTermino)}</span>,
             integralizando a carga horária total de{' '}
             <strong className="cert-montserrat" style={{ fontWeight: '800', color: deepNavy, fontSize: '15px' }}>
@@ -317,7 +346,7 @@ export const CertificadoTemplate: React.FC<{
             </p>
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {[
-                `Acesse ${window.location.origin}/validar e informe o código de autenticação impresso ao lado.`,
+                `Acesse https://extensao-uninassau.vercel.app/validar e informe o código de autenticação impresso ao lado.`,
                 'Escaneie o QR Code ao lado com seu smartphone para validação instantânea.',
               ].map((item, i) => (
                 <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>

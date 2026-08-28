@@ -7,6 +7,11 @@ import { CertificateRow, CertificateView, PublicCertificateResult, Certificado }
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { AppError } from '../../lib/errors';
 
+export interface CertificateViewWithTitulacao extends CertificateView {
+  professor_titulacao: string | null;
+  student_matricula: string | null;
+}
+
 const SELECT_COLUMNS = `
   c.id,
   c.public_code,
@@ -36,7 +41,7 @@ const FROM_CLAUSE = `
 `;
 
 export const certificadosRepository = {
-  findAll: async (): Promise<CertificateView[]> => {
+  findAll: async (): Promise<CertificateViewWithTitulacao[]> => {
     if (!isSupabaseConfigured) return [];
 
     const { data, error } = await supabase
@@ -58,30 +63,30 @@ export const certificadosRepository = {
         student_id,
         project_id,
         projects!certificates_project_id_fkey(title, start_date, end_date, workload_hours, campus, professor_id),
-        profiles!certificates_student_id_fkey(first_name, last_name, nome_completo)
+        profiles!certificates_student_id_fkey(first_name, last_name, nome_completo, matricula)
       `)
       .order('issued_at', { ascending: false });
 
     if (rowsError) throw new AppError(`Erro ao buscar certificados: ${rowsError.message}`, 500);
     if (!rows) return [];
 
-    // Fetch professor names in batch
+    // Fetch professor names and titulacao in batch
     const professorIds = [...new Set(
       rows
         .map(r => (r.projects as any)?.professor_id)
         .filter(Boolean)
     )];
 
-    let professorMap = new Map<string, string>();
+    let professorMap = new Map<string, { name: string; titulacao: string | null }>();
     if (professorIds.length > 0) {
       const { data: profs } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name, nome_completo')
+        .select('id, first_name, last_name, nome_completo, titulacao')
         .in('id', professorIds);
       if (profs) {
         profs.forEach(p => {
           const name = p.nome_completo || `${p.first_name} ${p.last_name}`.trim();
-          professorMap.set(p.id, name);
+          professorMap.set(p.id, { name, titulacao: p.titulacao });
         });
       }
     }
@@ -89,6 +94,7 @@ export const certificadosRepository = {
     return rows.map(row => {
       const proj = row.projects as any;
       const student = row.profiles as any;
+      const profData = professorMap.get(proj?.professor_id);
       return {
         id: row.id,
         public_code: row.public_code,
@@ -100,18 +106,20 @@ export const certificadosRepository = {
         revocation_reason: row.revocation_reason,
         student_name: student ? (student.nome_completo || `${student.first_name} ${student.last_name}`.trim()) : 'Desconhecido',
         student_id: row.student_id,
+        student_matricula: student?.matricula || null,
         project_title: proj?.title || 'Projeto Desconhecido',
         project_id: row.project_id,
         start_date: proj?.start_date || '',
         end_date: proj?.end_date || '',
         workload_hours: proj?.workload_hours || 0,
         campus: proj?.campus || null,
-        professor_name: professorMap.get(proj?.professor_id) || '',
+        professor_name: profData?.name || '',
+        professor_titulacao: profData?.titulacao || null,
       };
     });
   },
 
-  findByStudentId: async (studentId: string): Promise<CertificateView[]> => {
+  findByStudentId: async (studentId: string): Promise<CertificateViewWithTitulacao[]> => {
     if (!isSupabaseConfigured) return [];
 
     const { data: rows, error } = await supabase
@@ -128,7 +136,7 @@ export const certificadosRepository = {
         student_id,
         project_id,
         projects!certificates_project_id_fkey(title, start_date, end_date, workload_hours, campus, professor_id),
-        profiles!certificates_student_id_fkey(first_name, last_name, nome_completo)
+        profiles!certificates_student_id_fkey(first_name, last_name, nome_completo, matricula)
       `)
       .eq('student_id', studentId)
       .order('issued_at', { ascending: false });
@@ -140,16 +148,16 @@ export const certificadosRepository = {
       rows.map(r => (r.projects as any)?.professor_id).filter(Boolean)
     )];
 
-    let professorMap = new Map<string, string>();
+    let professorMap = new Map<string, { name: string; titulacao: string | null }>();
     if (professorIds.length > 0) {
       const { data: profs } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name, nome_completo')
+        .select('id, first_name, last_name, nome_completo, titulacao')
         .in('id', professorIds);
       if (profs) {
         profs.forEach(p => {
           const name = p.nome_completo || `${p.first_name} ${p.last_name}`.trim();
-          professorMap.set(p.id, name);
+          professorMap.set(p.id, { name, titulacao: p.titulacao });
         });
       }
     }
@@ -157,6 +165,7 @@ export const certificadosRepository = {
     return rows.map(row => {
       const proj = row.projects as any;
       const student = row.profiles as any;
+      const profData = professorMap.get(proj?.professor_id);
       return {
         id: row.id,
         public_code: row.public_code,
@@ -168,13 +177,15 @@ export const certificadosRepository = {
         revocation_reason: row.revocation_reason,
         student_name: student ? (student.nome_completo || `${student.first_name} ${student.last_name}`.trim()) : 'Desconhecido',
         student_id: row.student_id,
+        student_matricula: student?.matricula || null,
         project_title: proj?.title || 'Projeto Desconhecido',
         project_id: row.project_id,
         start_date: proj?.start_date || '',
         end_date: proj?.end_date || '',
         workload_hours: proj?.workload_hours || 0,
         campus: proj?.campus || null,
-        professor_name: professorMap.get(proj?.professor_id) || '',
+        professor_name: profData?.name || '',
+        professor_titulacao: profData?.titulacao || null,
       };
     });
   },
@@ -246,18 +257,18 @@ export const certificadosRepository = {
   },
 
   /** Convert CertificateView to frontend Certificado model */
-  toCertificado: (view: CertificateView): Certificado => {
+  toCertificado: (view: CertificateViewWithTitulacao): Certificado => {
     return {
       id: view.id,
       projetoId: view.project_id,
       codigoAutenticacao: view.public_code,
       codigoCertificado: view.codigo_certificado || '',
       alunoNome: view.student_name,
-      alunoMatricula: view.student_id,
+      alunoMatricula: view.student_matricula || '',
       alunoCpfLast6: '000000',
       projetoNome: view.project_title,
       professorResponsavel: view.professor_name,
-      titulacaoProfessor: '',
+      titulacaoProfessor: view.professor_titulacao || '',
       cargaHoraria: view.workload_hours,
       dataInicio: view.start_date,
       dataTermino: view.end_date,

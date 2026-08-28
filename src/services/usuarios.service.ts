@@ -127,6 +127,10 @@ export const usuariosService = {
         passwordResetRequired: p.password_reset_required,
         unidade: p.unidade,
         campus: p.campus,
+        titulacao: p.titulacao,
+        matricula: p.matricula,
+        nomeCompleto: p.nome_completo,
+        curso: p.curso,
         accessStatus,
         createdAt: p.created_at,
         resetRequestDate: resetMap.get(p.id) || undefined,
@@ -157,6 +161,7 @@ export const usuariosService = {
       matricula: string | null;
       nome_completo: string | null;
       curso: string | null;
+      titulacao: string | null;
       status_key: string;
       status_label: string;
     }>).map((row) => ({
@@ -174,6 +179,7 @@ export const usuariosService = {
       matricula: row.matricula,
       nomeCompleto: row.nome_completo,
       curso: row.curso,
+      titulacao: row.titulacao as Usuario['titulacao'],
       accessStatus: RPC_STATUS_MAP[row.status_key] || 'inactive',
       createdAt: row.created_at,
     }));
@@ -185,7 +191,8 @@ export const usuariosService = {
     role: UserRole,
     campus: string,
     matricula?: string,
-    curso?: string
+    curso?: string,
+    titulacao?: string
   ): Promise<Usuario & { code?: string }> => {
     const parts = nome.trim().split(' ');
     const firstName = parts[0] || '';
@@ -201,6 +208,7 @@ export const usuariosService = {
         matricula: matricula || null,
         nome_completo: nome.trim(),
         curso: curso || null,
+        titulacao: titulacao || null,
       },
     });
 
@@ -679,7 +687,7 @@ export const usuariosService = {
     });
   },
 
-  updateUser: async (userId: string, data: { first_name?: string; last_name?: string; campus?: string; role?: string; matricula?: string; nome_completo?: string; curso?: string }): Promise<void> => {
+  updateUser: async (userId: string, data: { first_name?: string; last_name?: string; campus?: string; role?: string; matricula?: string; nome_completo?: string; curso?: string; titulacao?: string }): Promise<void> => {
     const updates: Record<string, unknown> = {};
     if (data.first_name !== undefined) updates.first_name = data.first_name;
     if (data.last_name !== undefined) updates.last_name = data.last_name;
@@ -688,13 +696,18 @@ export const usuariosService = {
     if (data.matricula !== undefined) updates.matricula = data.matricula;
     if (data.nome_completo !== undefined) updates.nome_completo = data.nome_completo;
     if (data.curso !== undefined) updates.curso = data.curso;
+    if (data.titulacao !== undefined) updates.titulacao = data.titulacao;
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('profiles')
       .update(updates)
-      .eq('id', userId);
+      .eq('id', userId)
+      .select('id');
 
-    if (error) throw new Error('Erro ao atualizar usuário');
+    if (error) throw new Error(`Erro ao atualizar usuário: ${error.message}`);
+    if (!updated || updated.length === 0) {
+      throw new Error('Não foi possível atualizar o usuário (verifique se o usuário existe ou se sua conta tem permissão).');
+    }
   },
 
   toggleUserActive: async (userId: string, active: boolean): Promise<void> => {
