@@ -181,6 +181,30 @@ export interface Certificado {
   situacao: 'Válido' | 'Revogado';
   uuid: string;
   motivoRevogacao?: string;
+  /** Tipo do certificado: aluno ou professor orientador */
+  tipo?: 'aluno_participante' | 'professor_orientador';
+  /** ID do professor (somente para tipo professor_orientador) */
+  professorId?: string;
+}
+
+/** Certificado de orientação do professor — view enriquecida */
+export interface CertificadoProfessor {
+  id: string;
+  projetoId: string;
+  projetoNome: string;
+  projetoCategoria: string;
+  professorId: string;
+  professorNome: string;
+  professorTitulacao: string;
+  dataInicio: string;
+  dataTermino: string;
+  dataEmissao: string;
+  unidade: string;
+  codigoPublico: string;
+  codigoCertificado: string;
+  validationUuid: string;
+  situacao: 'Válido' | 'Revogado';
+  motivoRevogacao?: string;
 }
 
 /** Supabase `certificates` row (raw DB model) */
@@ -229,10 +253,13 @@ export interface PublicCertificateResult {
     workload_hours: number;
     campus: CampusCode | null;
     professor_name: string;
+    professor_titulacao?: string | null;
     public_code: string;
     codigo_certificado: string | null;
     validation_uuid: string;
     status: 'valido' | 'revogado';
+    tipo?: 'aluno_participante' | 'professor_orientador';
+    categoria?: string;
     issued_at: string;
     revoked_at: string | null;
     revocation_reason: string | null;

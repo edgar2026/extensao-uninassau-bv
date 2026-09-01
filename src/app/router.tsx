@@ -16,6 +16,7 @@ import { AlunoCertificados } from '../features/certificados/pages/AlunoCertifica
 
 import { ProfessorDashboard } from '../features/dashboard/pages/ProfessorDashboard';
 import { ProfessorProjetos } from '../features/projetos/pages/ProfessorProjetos';
+import { ProfessorCertificados } from '../features/certificados/pages/ProfessorCertificados';
 
 import { AdminDashboard } from '../features/dashboard/pages/AdminDashboard';
 import { AdminProjetos } from '../features/projetos/pages/AdminProjetos';
@@ -166,6 +167,16 @@ export default function AppRouter() {
             <PrivateRoute allowedRole="professor">
               <ProfessorLayout>
                 <ProfessorProjetos />
+              </ProfessorLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/professor/certificados"
+          element={
+            <PrivateRoute allowedRole="professor">
+              <ProfessorLayout>
+                <ProfessorCertificados />
               </ProfessorLayout>
             </PrivateRoute>
           }

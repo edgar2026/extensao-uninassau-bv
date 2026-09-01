@@ -6,6 +6,7 @@
 import { Projeto, ProjetoStatus, ProjetoArea, AlunoParticipante, DocumentoComprobatorio, CampusCode } from '../types';
 import { supabase } from '../lib/supabase';
 import { auditoriaService } from './auditoria.service';
+import { certificadosService } from './certificados.service';
 
 const DOCUMENTS_BUCKET = 'project-documents';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -427,6 +428,20 @@ export const projetosService = {
       const { data, error } = await supabase.rpc('approve_project', { p_project_id: id });
       if (error) throw new Error(`Erro ao aprovar projeto: ${error.message}`);
       await auditoriaService.logAuditoria('Administrador', 'admin', `Aprovou o projeto ${proj.title}`);
+
+      // Gerar certificado de orientação do professor (não bloqueia a aprovação se falhar)
+      try {
+        const projetoAprovado = await projetosService.getProjetoById(id);
+        if (projetoAprovado) {
+          const certResult = await certificadosService.gerarCertificadoProfessor(projetoAprovado);
+          if (certResult.blocked) {
+            console.warn(`[Aprovação] Certificado do professor não gerado: ${certResult.blocked}`);
+          }
+        }
+      } catch (certErr) {
+        console.error('[Aprovação] Erro ao gerar certificado do professor:', certErr);
+      }
+
       return (await projetosService.getProjetoById(id))!;
     }
 

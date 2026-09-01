@@ -55,11 +55,23 @@ backups/
 opencode.json
 opencode.json.backup
 
+# Agents configs (podem conter refs de projetos)
+.agents/
+
 # Seed scripts (contêm chaves de projetos antigos)
 seed_alunos.mjs
 
+# MCP / diagnóstico docs (podem conter refs reais)
+MCP_CONFIG.md
+MCP_SUPABASE.md
+SUPABASE_IMPLEMENTACAO.md
+DIAGNOSTICO_CERTIFICADO.md
+
 # Deploy docs (contêm chaves reais)
 DEPLOY_VERCEL.md
+
+# Fluxo simplificado (contém credenciais demo)
+FLUXO_SIMPLIFICADO.md
 
 # Vercel config
 .vercel/

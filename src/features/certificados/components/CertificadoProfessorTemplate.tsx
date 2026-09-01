@@ -4,11 +4,10 @@
  */
 
 import React from 'react';
-import { AssinaturaDigital, Certificado, TITULACAO_OPTIONS } from '../../../types';
+import { AssinaturaDigital, CertificadoProfessor, TITULACAO_OPTIONS } from '../../../types';
 
 const formatFullDatePT = (dateStr: string) => {
   if (!dateStr) return '';
-  // Suporta tanto '2026-06-30' quanto '2026-06-30T14:00:00.000Z'
   const normalized = dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00';
   const date = new Date(normalized);
   if (isNaN(date.getTime())) return '';
@@ -27,27 +26,22 @@ const formatPeriodPT = (startStr: string, endStr: string) => {
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
-  const formatMonth = (d: Date) => {
-    return months[d.getMonth()];
-  };
-  return `${formatMonth(start)} de ${start.getFullYear()} a ${formatMonth(end)} de ${end.getFullYear()}`;
+  return `${months[start.getMonth()]} de ${start.getFullYear()} a ${months[end.getMonth()]} de ${end.getFullYear()}`;
 };
 
-export const CertificadoTemplate: React.FC<{
-  cert: Certificado;
+export const CertificadoProfessorTemplate: React.FC<{
+  cert: CertificadoProfessor;
   assinatura: AssinaturaDigital | null;
   className?: string;
 }> = ({ cert, assinatura, className = '' }) => {
   const reitoria = assinatura;
 
   const titulacaoAbreviada =
-    TITULACAO_OPTIONS.find(o => o.value === cert.titulacaoProfessor)?.abreviacao || 'Prof.';
+    TITULACAO_OPTIONS.find(o => o.value === cert.professorTitulacao)?.abreviacao || 'Prof.';
 
-  const validationUrl = `https://extensao-uninassau.vercel.app/validar?codigo=${cert.codigoAutenticacao}`;
+  const validationUrl = `https://extensao-uninassau.vercel.app/validar?codigo=${cert.codigoPublico}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=002D54&bgcolor=FAF6F0&data=${encodeURIComponent(validationUrl)}`;
 
-  // ── Inline styles for premium elements ─────────────────────────────────────
-  const goldGradient = 'linear-gradient(135deg, #C9A84C 0%, #F5DC7C 30%, #E8C04A 50%, #F5DC7C 70%, #B8972D 100%)';
   const goldGradientSubtle = 'linear-gradient(135deg, #B8972D 0%, #E8C04A 40%, #F5DC7C 60%, #C9A84C 100%)';
   const parchmentBg = 'radial-gradient(ellipse at 50% 40%, #FEFCF6 0%, #FAF6F0 55%, #F4EDDF 100%)';
   const deepNavy = '#001F3F';
@@ -58,24 +52,19 @@ export const CertificadoTemplate: React.FC<{
     <div className={`certificado-double-page flex flex-col gap-10 w-full max-w-[900px] mx-auto select-none ${className}`}>
       {/* ── Google Fonts Injection ─────────────────────────────────────────── */}
       <style dangerouslySetInnerHTML={{__html: `
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Great+Vibes&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Montserrat:wght@300;400;500;600;700;800&display=swap');
-        .cert-great-vibes { font-family: 'Great Vibes', cursive; }
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Montserrat:wght@300;400;500;600;700;800&display=swap');
 
-        .cert-cinzel { font-family: 'Cinzel', 'Georgia', serif; }
-        .cert-playfair { font-family: 'Playfair Display', 'Georgia', serif; }
-        .cert-montserrat { font-family: 'Montserrat', 'Arial', sans-serif; }
+        .cert-prof-cinzel { font-family: 'Cinzel', 'Georgia', serif; }
+        .cert-prof-playfair { font-family: 'Playfair Display', 'Georgia', serif; }
+        .cert-prof-montserrat { font-family: 'Montserrat', 'Arial', sans-serif; }
 
-        .cert-gold-text {
-          background: ${goldGradient};
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-        .cert-gold-border {
-          background: ${goldGradient};
+        .cert-prof-guilloche {
+          background-image:
+            repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(0,45,84,0.04) 18px, rgba(0,45,84,0.04) 19px),
+            repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(0,45,84,0.04) 18px, rgba(0,45,84,0.04) 19px);
         }
 
-        .certificate-title-band {
+        .certificate-prof-title-band {
           width: 100%;
           margin: 22px auto 0;
           padding: 0 20px;
@@ -84,7 +73,7 @@ export const CertificadoTemplate: React.FC<{
           z-index: 10;
         }
 
-        .certificate-title-band .title-text {
+        .certificate-prof-title-band .title-text {
           display: block;
           font-family: 'Cinzel', Georgia, serif;
           font-size: 64px;
@@ -97,50 +86,24 @@ export const CertificadoTemplate: React.FC<{
           text-transform: uppercase;
         }
 
-        .cert-guilloche {
-          background-image:
-            repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(0,45,84,0.04) 18px, rgba(0,45,84,0.04) 19px),
-            repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(0,45,84,0.04) 18px, rgba(0,45,84,0.04) 19px);
-        }
-
         @media print {
-          @page {
-            size: A4 landscape;
-            margin: 0 !important;
-          }
-          html, body {
-            margin: 0 !important;
-            padding: 0 !important;
+          @page { size: A4 landscape; margin: 0 !important; }
+          html, body { margin: 0 !important; padding: 0 !important;
             -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
+            print-color-adjust: exact !important; }
           body * { visibility: hidden !important; }
-          .certificado-double-page,
-          .certificado-double-page * { visibility: visible !important; }
+          .certificado-double-page, .certificado-double-page * { visibility: visible !important; }
           .certificado-double-page {
-            position: absolute !important;
-            left: 0 !important; top: 0 !important;
-            width: 297mm !important;
-            margin: 0 !important; padding: 0 !important;
-            gap: 0 !important; display: block !important;
+            position: fixed !important; top: 0 !important; left: 0 !important;
+            width: 297mm !important; min-height: 210mm !important; max-width: none !important;
+            padding: 0 !important; margin: 0 !important; gap: 0 !important;
+            display: block !important;
           }
-          .certificado-frente,
-          .certificado-verso {
-            position: relative !important;
-            width: 297mm !important;
-            height: 210mm !important;
-            margin: 0 !important;
-            padding: 10mm 14mm 8mm !important;
-            border-radius: 0 !important;
-            box-shadow: none !important;
-            page-break-after: always !important;
-            break-after: page !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            box-sizing: border-box !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
+          .certificado-frente {
+            width: 297mm !important; height: 210mm !important; page-break-after: always !important;
+            box-shadow: none !important; border-radius: 0 !important;
+            box-sizing: border-box !important; display: flex !important;
+            flex-direction: column !important; justify-content: space-between !important;
             overflow: visible !important;
           }
         }
@@ -160,12 +123,12 @@ export const CertificadoTemplate: React.FC<{
       >
         {/* Outer Thin Navy Border */}
         <div className="absolute inset-0 rounded-[20px] pointer-events-none z-[1]" style={{ border: `2px solid ${midNavy}`, borderRadius: '20px' }} />
-        
+
         {/* Inner Gold Thin Border */}
         <div className="absolute pointer-events-none z-[2]" style={{ inset: '22px', border: `2px solid ${goldColor}`, borderRadius: '10px' }} />
 
         {/* Micro Security Guilloche Watermark */}
-        <div className="cert-guilloche absolute inset-0 pointer-events-none z-[0]" style={{ borderRadius: '20px' }} />
+        <div className="cert-prof-guilloche absolute inset-0 pointer-events-none z-[0]" style={{ borderRadius: '20px' }} />
 
         {/* Gold Corner Ornaments */}
         {[
@@ -181,7 +144,7 @@ export const CertificadoTemplate: React.FC<{
           </div>
         ))}
 
-        {/* ── CABEÇALHO (Logos centralizadas lado a lado) ──────────────────────── */}
+        {/* ── CABEÇALHO ─────────────────────────────────────────────────────── */}
         <div className="relative z-10 flex flex-col items-center gap-1.5 pt-2">
           <div className="flex items-center justify-center gap-4">
             <img
@@ -196,65 +159,52 @@ export const CertificadoTemplate: React.FC<{
               style={{ height: '96px', width: 'auto', objectFit: 'contain', display: 'block', background: 'transparent' }}
             />
           </div>
-          <span className="cert-cinzel tracking-[0.28em]" style={{ fontSize: '11px', fontWeight: '700', color: deepNavy, textTransform: 'uppercase' }}>
+          <span className="cert-prof-cinzel tracking-[0.28em]" style={{ fontSize: '11px', fontWeight: '700', color: deepNavy, textTransform: 'uppercase' }}>
             UNINASSAU RECIFE
           </span>
           <div style={{ width: '160px', height: '1.5px', background: goldGradientSubtle, margin: '4px 0' }} />
         </div>
 
         {/* ── TÍTULO CERTIFICADO ─────────────────────────────────────────── */}
-        <div className="certificate-title-band">
+        <div className="certificate-prof-title-band">
           <span className="title-text">CERTIFICADO</span>
         </div>
 
-        {/* ── CORPO DO TEXTO (Texto jurídico oficial) ──────────────────────── */}
+        {/* ── CORPO DO TEXTO DO PROFESSOR ───────────────────────────────────── */}
         <div
           className="relative z-10 px-8 md:px-14"
-          style={{
-            marginTop: '34px',
-            flex: '0 0 auto'
-          }}
+          style={{ marginTop: '28px', flex: '0 0 auto' }}
         >
-          <p className="cert-playfair leading-relaxed" style={{ fontSize: '14.5px', color: '#1e293b', fontWeight: '400' }}>
-            Certificamos, para os devidos fins de direito e cumprimento das normas acadêmicas, que{' '}
-            <strong className="cert-cinzel" style={{ fontSize: '17px', fontWeight: '700', color: deepNavy }}>
-              {cert.alunoNome.toUpperCase()}
-            </strong>
-            {cert.alunoMatricula ? (
-              <>, matrícula nº {cert.alunoMatricula}</>
-            ) : (
-              <>, matrícula não informada — cadastro do aluno incompleto</>
-            )},
-            participou com êxito do projeto de extensão intitulado{' '}
-            <strong className="cert-playfair" style={{ fontStyle: 'italic', fontWeight: '600', color: midNavy }}>
+          <p className="cert-prof-playfair leading-relaxed" style={{ fontSize: '14.5px', color: '#1e293b', fontWeight: '400' }}>
+            Certificamos, para os devidos fins, que{' '}
+            <strong className="cert-prof-cinzel" style={{ fontSize: '17px', fontWeight: '700', color: deepNavy }}>
+              {titulacaoAbreviada} {cert.professorNome.toUpperCase()}
+            </strong>{' '}
+            atuou como professor orientador do projeto de extensão intitulado{' '}
+            <strong className="cert-prof-playfair" style={{ fontStyle: 'italic', fontWeight: '600', color: '#002D54' }}>
               "{cert.projetoNome}"
-            </strong>,
-            sob orientação de <strong className="cert-montserrat" style={{ fontWeight: '600', color: deepNavy }}>
-              {!cert.professorResponsavel && !cert.titulacaoProfessor
-                ? 'cadastro do orientador incompleto (nome e titulação não informados)'
-                : !cert.titulacaoProfessor
-                  ? `${cert.professorResponsavel.toUpperCase()} — cadastro do orientador incompleto (titulação não informada)`
-                  : !cert.professorResponsavel
-                    ? 'cadastro do orientador incompleto (nome não informado)'
-                    : `${titulacaoAbreviada} ${cert.professorResponsavel.toUpperCase()}`}
-            </strong>,
-            no período de <span className="cert-montserrat" style={{ fontWeight: '600', fontSize: '13px' }}>{formatPeriodPT(cert.dataInicio, cert.dataTermino)}</span>,
-            integralizando a carga horária total de{' '}
-            <strong className="cert-montserrat" style={{ fontWeight: '800', color: deepNavy, fontSize: '15px' }}>
-              {cert.cargaHoraria} HORAS
-            </strong>.
+            </strong>
+            , realizado no período de{' '}
+            <span className="cert-prof-montserrat" style={{ fontWeight: '600', fontSize: '13px' }}>
+              {formatPeriodPT(cert.dataInicio, cert.dataTermino)}
+            </span>
+            , contribuindo para o desenvolvimento e acompanhamento das atividades acadêmicas.
           </p>
+        </div>
+
+        {/* ── TIPO DO CERTIFICADO (label discreto) ─────────────────────────── */}
+        <div className="relative z-10 mt-3">
+          <span className="cert-prof-cinzel" style={{ fontSize: '8.5px', letterSpacing: '0.22em', color: goldColor, textTransform: 'uppercase', opacity: 0.85 }}>
+            Certificado de Orientação de Projeto de Extensão
+          </span>
         </div>
 
         {/* ── ASSINATURAS E DATA ───────────────────────────────────────────── */}
         <div className="relative z-10 flex flex-col items-center gap-2 px-6 pt-2 pb-2" style={{ marginTop: 'auto' }}>
-
-          {/* Data de Emissão */}
-          <span className="cert-cinzel" style={{ fontSize: '9.5px', fontWeight: '600', letterSpacing: '0.18em', color: deepNavy }}>
+          <span className="cert-prof-cinzel" style={{ fontSize: '9.5px', fontWeight: '600', letterSpacing: '0.18em', color: deepNavy }}>
             Recife, {formatFullDatePT(cert.dataEmissao)}
           </span>
 
-          {/* Assinatura do Reitor (única) */}
           <div className="flex flex-col items-center" style={{ width: '260px' }}>
             {reitoria?.imagemUrl ? (
               <img
@@ -269,47 +219,26 @@ export const CertificadoTemplate: React.FC<{
             ) : (
               <div style={{ height: '36px' }} />
             )}
-            <div style={{ width: '220px', height: '1.5px', background: goldGradientSubtle }} />
-            <p className="cert-montserrat" style={{ fontSize: '9px', fontWeight: '700', letterSpacing: '0.2em', color: deepNavy, textTransform: 'uppercase', marginTop: '5px', textAlign: 'center' }}>
-              {reitoria?.nome
-                ? reitoria.nome.replace(/Dr[aª]\.?\s*/gi, '')
-                : ''}
-            </p>
-            <p className="cert-montserrat" style={{ fontSize: '7.5px', fontWeight: '400', letterSpacing: '0.12em', color: '#94a3b8', textTransform: 'uppercase', marginTop: '2px' }}>
-              {reitoria?.cargo
-                ? reitoria.cargo.toUpperCase()
-                : 'REITOR UNINASSAU RECIFE'}
-            </p>
+            <div style={{ width: '200px', height: '1.5px', background: goldGradientSubtle }} />
+            <span className="cert-prof-cinzel" style={{ fontSize: '9.5px', fontWeight: '700', letterSpacing: '0.18em', color: deepNavy, marginTop: '4px' }}>
+              {reitoria?.nome?.toUpperCase() || 'UNINASSAU RECIFE'}
+            </span>
+            <span className="cert-prof-montserrat" style={{ fontSize: '8px', fontWeight: '500', letterSpacing: '0.15em', color: '#475569', textTransform: 'uppercase' }}>
+              {reitoria?.cargo || 'REITOR'}
+            </span>
           </div>
-
-          {/* Aviso quando não há assinatura */}
-          {!reitoria && (
-            <div style={{
-              marginTop: '8px',
-              padding: '6px 12px',
-              background: 'rgba(251,191,36,0.12)',
-              border: '1px dashed rgba(251,191,36,0.5)',
-              borderRadius: '6px',
-              textAlign: 'center',
-            }}>
-              <p className="cert-montserrat" style={{ fontSize: '8px', fontWeight: '600', color: '#92400e', letterSpacing: '0.05em' }}>
-                Assinatura institucional não configurada para este campus.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Micro metadata footer */}
         <div className="absolute bottom-8 left-0 right-0 flex justify-between px-12 pointer-events-none z-10" style={{ opacity: 0.45 }}>
-          <span className="cert-montserrat" style={{ fontSize: '7px', letterSpacing: '0.12em', color: deepNavy }}>
-            REG: {cert.codigoCertificado}
+          <span className="cert-prof-montserrat" style={{ fontSize: '7px', letterSpacing: '0.12em', color: deepNavy }}>
+            CÓD: {cert.codigoPublico}
           </span>
-          <span className="cert-montserrat" style={{ fontSize: '7px', letterSpacing: '0.12em', color: deepNavy }}>
+          <span className="cert-prof-montserrat" style={{ fontSize: '7px', letterSpacing: '0.12em', color: deepNavy }}>
             FRENTE
           </span>
         </div>
       </div>
-
 
       {/* ═══════════════════════════════════════════════════════════════════════
           VERSO — Página 2
@@ -324,11 +253,11 @@ export const CertificadoTemplate: React.FC<{
           borderRadius: '20px',
         }}
       >
-        {/* Borders (same as front) */}
+        {/* Borders */}
         <div className="absolute inset-0 rounded-[20px] pointer-events-none z-[1]" style={{ border: `2px solid ${midNavy}`, borderRadius: '20px' }} />
         <div className="absolute pointer-events-none z-[2]" style={{ inset: '22px', border: `2px solid ${goldColor}`, borderRadius: '10px' }} />
         <div className="absolute pointer-events-none z-[2]" style={{ inset: '26px', border: '0.5px solid rgba(0,45,84,0.15)', borderRadius: '7px' }} />
-        <div className="cert-guilloche absolute inset-0 pointer-events-none z-[0]" style={{ borderRadius: '20px' }} />
+        <div className="cert-prof-guilloche absolute inset-0 pointer-events-none z-[0]" style={{ borderRadius: '20px' }} />
 
         {/* Gold corner ornaments */}
         {[
@@ -348,7 +277,7 @@ export const CertificadoTemplate: React.FC<{
         <div className="relative z-10 flex justify-between items-center px-16 pt-10 pb-4" style={{ borderBottom: `1px solid rgba(0,45,84,0.12)` }}>
           <img src="/logo-cert.png" alt="UNINASSAU" style={{ height: '40px', width: 'auto', objectFit: 'contain' }} />
           <div className="text-center">
-            <span className="cert-cinzel" style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '0.25em', color: deepNavy, textTransform: 'uppercase' }}>
+            <span className="cert-prof-cinzel" style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '0.25em', color: deepNavy, textTransform: 'uppercase' }}>
               VALIDAÇÃO E AUTENTICIDADE
             </span>
             <div style={{ height: '1px', width: '180px', background: goldGradientSubtle, margin: '4px auto 0' }} />
@@ -360,11 +289,11 @@ export const CertificadoTemplate: React.FC<{
         <div className="relative z-10 flex-1 grid px-16 gap-10 items-center" style={{ gridTemplateColumns: '1fr 200px', paddingTop: '16px', paddingBottom: '16px' }}>
           {/* Left: Instructions */}
           <div className="flex flex-col gap-3">
-            <h3 className="cert-cinzel" style={{ fontSize: '11px', fontWeight: '700', letterSpacing: '0.2em', color: deepNavy, textTransform: 'uppercase' }}>
+            <h3 className="cert-prof-cinzel" style={{ fontSize: '11px', fontWeight: '700', letterSpacing: '0.2em', color: deepNavy, textTransform: 'uppercase' }}>
               Instruções de Validação Oficial
             </h3>
-            <p className="cert-playfair" style={{ fontSize: '11.5px', color: '#475569', lineHeight: '1.75', fontWeight: '400' }}>
-              Este documento está registrado digitalmente nos arquivos acadêmicos da instituição e possui validade jurídica assegurada por assinatura eletrônica qualificada.
+            <p className="cert-prof-playfair" style={{ fontSize: '11.5px', color: '#475569', lineHeight: '1.75', fontWeight: '400' }}>
+              Este documento comprova oficialmente a orientação docente em projeto de extensão universitária, devidamente registrado nos sistemas institucionais da UNINASSAU.
             </p>
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {[
@@ -375,13 +304,13 @@ export const CertificadoTemplate: React.FC<{
                   <svg viewBox="0 0 14 14" width="14" height="14" style={{ flexShrink: 0, marginTop: '3px' }}>
                     <path d="M7 2 L8.5 5.5 L12 5.5 L9.5 7.5 L10.5 11 L7 9 L3.5 11 L4.5 7.5 L2 5.5 L5.5 5.5 Z" fill={goldColor} />
                   </svg>
-                  <p className="cert-playfair" style={{ fontSize: '11px', color: '#475569', lineHeight: '1.6', margin: 0 }}>{item}</p>
+                  <p className="cert-prof-playfair" style={{ fontSize: '11px', color: '#475569', lineHeight: '1.6', margin: 0 }}>{item}</p>
                 </li>
               ))}
             </ul>
             <div style={{ background: 'rgba(0,45,84,0.04)', border: '1px solid rgba(0,45,84,0.08)', borderRadius: '8px', padding: '10px 12px', marginTop: '4px' }}>
-              <p className="cert-montserrat" style={{ fontSize: '8.5px', color: '#64748b', lineHeight: '1.6', fontWeight: '400' }}>
-                <strong style={{ color: deepNavy }}>Resolução CNE/CES nº 7/2018:</strong> As atividades de extensão curricular são obrigatórias na graduação, integralizando o histórico acadêmico conforme legislação federal.
+              <p className="cert-prof-montserrat" style={{ fontSize: '8.5px', color: '#64748b', lineHeight: '1.6', fontWeight: '400' }}>
+                <strong style={{ color: deepNavy }}>Orientação de Extensão:</strong> Atividade docente de acompanhamento, supervisão e avaliação pedagógica dos discentes participantes do projeto.
               </p>
             </div>
           </div>
@@ -392,7 +321,6 @@ export const CertificadoTemplate: React.FC<{
             background: 'rgba(0,45,84,0.03)', borderRadius: '14px', padding: '16px',
             border: '1px solid rgba(201,168,76,0.35)',
           }}>
-            {/* QR code with gold frame */}
             <div style={{
               padding: '8px', background: '#FAF6F0', borderRadius: '10px',
               border: `2px solid ${goldColor}`,
@@ -401,15 +329,14 @@ export const CertificadoTemplate: React.FC<{
               <img src={qrCodeUrl} alt="QR Code de Validação" style={{ width: '120px', height: '120px', display: 'block' }} />
             </div>
 
-            {/* Codes */}
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '5px' }}>
               {[
-                { label: 'Registro', value: cert.codigoCertificado },
-                { label: 'Validação', value: cert.codigoAutenticacao },
+                { label: 'Autenticação', value: cert.codigoPublico },
+                { label: 'Situação', value: cert.situacao },
               ].map(({ label, value }) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '4px', borderBottom: '1px solid rgba(0,45,84,0.08)' }}>
-                  <span className="cert-montserrat" style={{ fontSize: '8px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}:</span>
-                  <span className="cert-montserrat" style={{ fontSize: '8px', fontWeight: '700', color: deepNavy, fontFamily: 'monospace' }}>{value}</span>
+                  <span className="cert-prof-montserrat" style={{ fontSize: '8px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}:</span>
+                  <span className="cert-prof-montserrat" style={{ fontSize: '8px', fontWeight: '700', color: deepNavy, fontFamily: 'monospace' }}>{value}</span>
                 </div>
               ))}
             </div>
@@ -418,10 +345,10 @@ export const CertificadoTemplate: React.FC<{
 
         {/* Micro footer */}
         <div className="absolute bottom-8 left-0 right-0 flex justify-between px-12 pointer-events-none z-10" style={{ opacity: 0.45 }}>
-          <span className="cert-montserrat" style={{ fontSize: '7px', letterSpacing: '0.12em', color: deepNavy }}>
+          <span className="cert-prof-montserrat" style={{ fontSize: '7px', letterSpacing: '0.12em', color: deepNavy }}>
             SITUAÇÃO: {cert.situacao.toUpperCase()}
           </span>
-          <span className="cert-montserrat" style={{ fontSize: '7px', letterSpacing: '0.12em', color: deepNavy }}>
+          <span className="cert-prof-montserrat" style={{ fontSize: '7px', letterSpacing: '0.12em', color: deepNavy }}>
             VERSO
           </span>
         </div>

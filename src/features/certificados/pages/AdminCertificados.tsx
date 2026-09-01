@@ -10,7 +10,7 @@ import { usuariosService } from '../../../services/usuarios.service';
 import { AssinaturaDigital, Certificado } from '../../../types';
 import {
   Plus, X, Download, ShieldOff, ShieldCheck,
-  Building2, AlertTriangle
+  Building2, AlertTriangle, GraduationCap, BookOpen
 } from 'lucide-react';
 import { CertificadoTemplate } from '../components/CertificadoTemplate';
 import { generateCertificadoPdf } from '../utils/generatePdf';
@@ -156,22 +156,58 @@ export const AdminCertificados: React.FC = () => {
     }
   };
 
+  const [isGeneratingRetroactive, setIsGeneratingRetroactive] = useState(false);
+  const [retroactiveReport, setRetroactiveReport] = useState<{
+    projetosAprovados: number;
+    criados: number;
+    jaExistiam: number;
+    bloqueados: Array<{ projetoId: string; projetoNome: string; motivo: string }>;
+  } | null>(null);
+
+  const handleGerarRetroativo = async () => {
+    setIsGeneratingRetroactive(true);
+    try {
+      const report = await certificadosService.gerarCertificadosRetroativos();
+      setRetroactiveReport(report);
+      fetchCertificados();
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao sincronizar certificados de professores.');
+    } finally {
+      setIsGeneratingRetroactive(false);
+    }
+  };
+
   const inputCls = "bg-slate-50 p-2.5 rounded-xl border border-slate-200 w-full text-xs focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500";
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900">Certificados Digitais Emitidos</h2>
-          <p className="text-slate-400 text-xs mt-0.5">Monitore registros digitais ou emita certificados avulsos.</p>
+          <p className="text-slate-400 text-xs mt-0.5">Monitore registros digitais, sincronize orientadores ou emita certificados avulsos.</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-cyan-500 hover:bg-cyan-400 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-cyan-500/10 cursor-pointer"
-        >
-          <Plus className="h-4 w-4" /> Emitir Certificado Avulso
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleGerarRetroativo}
+            disabled={isGeneratingRetroactive}
+            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+            title="Gera certificados de orientação para projetos já aprovados sem duplicar"
+          >
+            {isGeneratingRetroactive ? (
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <ShieldCheck className="h-4 w-4" />
+            )}
+            <span>{isGeneratingRetroactive ? 'Processando...' : 'Sincronizar Certificados de Professores'}</span>
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-cyan-500 hover:bg-cyan-400 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-cyan-500/10 cursor-pointer"
+          >
+            <Plus className="h-4 w-4" /> Emitir Certificado Avulso
+          </button>
+        </div>
       </div>
 
       {/* Error */}
@@ -193,8 +229,9 @@ export const AdminCertificados: React.FC = () => {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <th className="px-6 py-3.5">Tipo</th>
                   <th className="px-6 py-3.5">Código Único</th>
-                  <th className="px-6 py-3.5">Nome do Aluno</th>
+                  <th className="px-6 py-3.5">Beneficiário</th>
                   <th className="px-6 py-3.5">Projeto Vinculado</th>
                   <th className="px-6 py-3.5">Unidade</th>
                   <th className="px-6 py-3.5">Data</th>
@@ -203,27 +240,64 @@ export const AdminCertificados: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-600">
-                {certificados.map(cert => (
-                  <tr key={cert.id} className="hover:bg-slate-50/50">
-                    <td className="px-6 py-4 font-mono font-bold text-slate-900">{cert.codigoCertificado}</td>
-                    <td className="px-6 py-4 font-bold text-slate-800">{cert.alunoNome}</td>
+                {certificados.map(cert => {
+                  const isProfessor = cert.tipo === 'professor_orientador';
+                  const beneficiario = isProfessor
+                    ? cert.professorResponsavel || 'Professor'
+                    : cert.alunoNome === 'Desconhecido' ? '—' : cert.alunoNome;
+                  return (
+                  <tr key={cert.id} className={`hover:bg-slate-50/50 ${cert.situacao === 'Revogado' ? 'opacity-60' : ''}`}>
+                    {/* Tipo */}
+                    <td className="px-6 py-4">
+                      {isProfessor ? (
+                        <span className="inline-flex items-center gap-1 text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap">
+                          <BookOpen className="h-3 w-3" /> Orientador
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap">
+                          <GraduationCap className="h-3 w-3" /> Aluno
+                        </span>
+                      )}
+                    </td>
+                    {/* Código */}
+                    <td className="px-6 py-4 font-mono font-bold text-slate-900">
+                      {cert.codigoCertificado || <span className="text-slate-300 select-none">—</span>}
+                    </td>
+                    {/* Beneficiário */}
+                    <td className="px-6 py-4">
+                      <span className="font-bold text-slate-800 block">{beneficiario}</span>
+                      {isProfessor && (
+                        <span className="text-[10px] text-slate-400">Prof. Orientador</span>
+                      )}
+                    </td>
+                    {/* Projeto */}
                     <td className="px-6 py-4 font-semibold text-slate-700 max-w-[200px] truncate">{cert.projetoNome}</td>
+                    {/* Unidade */}
                     <td className="px-6 py-4">
                       <span className="flex items-center gap-1">
                         <Building2 className="h-3 w-3 text-slate-400 shrink-0" />
-                        {cert.unidade}
+                        {cert.unidade || '—'}
                       </span>
                     </td>
+                    {/* Data */}
                     <td className="px-6 py-4">{new Date(cert.dataEmissao).toLocaleDateString('pt-BR')}</td>
+                    {/* Situação */}
                     <td className="px-6 py-4">
                       {cert.situacao === 'Válido' ? (
                         <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold">
                           <ShieldCheck className="h-3 w-3" /> Válido
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full text-[10px] font-bold" title={cert.motivoRevogacao}>
-                          <ShieldOff className="h-3 w-3" /> Revogado
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full text-[10px] font-bold w-fit">
+                            <ShieldOff className="h-3 w-3" /> Revogado
+                          </span>
+                          {cert.motivoRevogacao && (
+                            <span className="text-[10px] text-rose-500 max-w-[140px] truncate" title={cert.motivoRevogacao}>
+                              {cert.motivoRevogacao}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="px-6 py-4 text-right flex justify-end gap-1.5 whitespace-nowrap">
@@ -262,12 +336,13 @@ export const AdminCertificados: React.FC = () => {
                           Restaurar
                         </button>
                       )}
-                    </td>
+                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {certificados.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="text-center py-16 text-slate-400">
+                    <td colSpan={8} className="text-center py-16 text-slate-400">
                       Nenhum certificado emitido ainda.
                     </td>
                   </tr>
@@ -503,6 +578,76 @@ export const AdminCertificados: React.FC = () => {
                 className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold cursor-pointer"
               >
                 Fechar
+              </button>
+            </div>
+          </div>
+        </PortalOverlay>
+      )}
+
+      {/* MODAL — Relatório de Sincronização Retroativa */}
+      {retroactiveReport && (
+        <PortalOverlay onClose={() => setRetroactiveReport(null)}>
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 shadow-2xl flex flex-col gap-5 animate-slide-up text-left">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  Sincronização de Certificados Docentes
+                </h3>
+              </div>
+              <button onClick={() => setRetroactiveReport(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs text-slate-600">
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <span className="block text-lg font-bold text-slate-900">{retroactiveReport.projetosAprovados}</span>
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold">Projetos Aprovados</span>
+                </div>
+                <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                  <span className="block text-lg font-bold text-emerald-600">{retroactiveReport.criados}</span>
+                  <span className="text-[10px] text-emerald-700 uppercase font-semibold">Criados Agora</span>
+                </div>
+                <div className="bg-cyan-50 p-3 rounded-xl border border-cyan-100">
+                  <span className="block text-lg font-bold text-cyan-600">{retroactiveReport.jaExistiam}</span>
+                  <span className="text-[10px] text-cyan-700 uppercase font-semibold">Já Existentes</span>
+                </div>
+              </div>
+
+              {retroactiveReport.bloqueados.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>Projetos com pendência cadastral ({retroactiveReport.bloqueados.length}):</span>
+                  </div>
+                  <ul className="list-disc pl-4 space-y-1 text-[11px] text-amber-700 max-h-32 overflow-y-auto">
+                    {retroactiveReport.bloqueados.map((b, idx) => (
+                      <li key={idx}>
+                        <strong>{b.projetoNome}:</strong> {b.motivo}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[10px] text-amber-600 italic">
+                    Regularize o cadastro do orientador em Gestão de Usuários e execute novamente.
+                  </p>
+                </div>
+              )}
+
+              {retroactiveReport.criados === 0 && retroactiveReport.bloqueados.length === 0 && (
+                <p className="text-emerald-700 bg-emerald-50 p-3 rounded-xl border border-emerald-100 text-center font-medium">
+                  Todos os professores de projetos aprovados já possuem seus respectivos certificados de orientação emitidos.
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setRetroactiveReport(null)}
+                className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2 rounded-xl font-bold text-xs cursor-pointer"
+              >
+                Concluir
               </button>
             </div>
           </div>

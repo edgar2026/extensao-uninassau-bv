@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Certificado, Relatorio, Projeto } from '../types';
+import { Certificado, CertificadoProfessor, Relatorio, Projeto, TITULACAO_OPTIONS } from '../types';
 import { supabase } from '../lib/supabase';
 import { auditoriaService } from './auditoria.service';
 import { certificadosRepository } from './repositories/certificados.repository';
@@ -47,7 +47,7 @@ export const certificadosService = {
         alunoCpfLast6: '',
         projetoNome: c.project_title,
         professorResponsavel: c.professor_name,
-        titulacaoProfessor: '',
+        titulacaoProfessor: c.professor_titulacao || '',
         cargaHoraria: c.workload_hours,
         dataInicio: c.period.split(' a ')[0] || '',
         dataTermino: c.period.split(' a ')[1] || '',
@@ -56,6 +56,7 @@ export const certificadosService = {
         situacao: c.status === 'valido' ? 'Válido' : 'Revogado',
         uuid: c.validation_uuid,
         motivoRevogacao: c.revocation_reason || undefined,
+        tipo: c.tipo || 'aluno_participante',
       };
     } catch (err) {
       console.error('Erro na validação via Supabase:', err);
@@ -186,5 +187,115 @@ export const certificadosService = {
       situacao: 'Válido',
       uuid: data.validation_uuid,
     };
+  },
+  /** Busca certificados de orientação do professor autenticado */
+  getCertificadosByProfessor: async (professorId: string): Promise<CertificadoProfessor[]> => {
+    try {
+      return await certificadosRepository.findByProfessorId(professorId);
+    } catch (err) {
+      console.error('Erro ao buscar certificados do professor:', err);
+      throw err;
+    }
+  },
+
+  /** Gera (ou ignora se já existir) o certificado de orientação do professor para um projeto */
+  gerarCertificadoProfessor: async (projeto: Projeto): Promise<{ created: boolean; blocked?: string }> => {
+    if (projeto.status !== 'aprovado') {
+      return { created: false, blocked: 'Projeto não aprovado' };
+    }
+
+    if (!projeto.professorId) {
+      console.warn(`[CertProf] Projeto ${projeto.id} sem professor_id — certificado não gerado`);
+      return { created: false, blocked: 'professor_id ausente' };
+    }
+
+    // Buscar dados do professor
+    const { data: profProfile } = await supabase
+      .from('profiles')
+      .select('id, first_name, last_name, nome_completo, titulacao')
+      .eq('id', projeto.professorId)
+      .single();
+
+    if (!profProfile) {
+      console.warn(`[CertProf] Perfil do professor não encontrado: ${projeto.professorId}`);
+      return { created: false, blocked: 'Perfil do professor não encontrado' };
+    }
+
+    const profName = profProfile.nome_completo || `${profProfile.first_name} ${profProfile.last_name}`.trim();
+    if (!profName) {
+      return { created: false, blocked: 'Nome do professor não cadastrado' };
+    }
+
+    if (!profProfile.titulacao) {
+      console.warn(`[CertProf] Titulação ausente para professor ${profProfile.id}`);
+      return { created: false, blocked: `Titulação não cadastrada para ${profName}` };
+    }
+
+    const result = await certificadosRepository.createProfessorCertificate(projeto.professorId, projeto.id);
+    if (result.error) {
+      console.error(`[CertProf] Erro ao criar certificado: ${result.error}`);
+      return { created: false, blocked: result.error };
+    }
+
+    return { created: result.created };
+  },
+
+  /** Gera certificados retroativos para todos os projetos aprovados (idempotente) */
+  gerarCertificadosRetroativos: async (): Promise<{
+    projetosAprovados: number;
+    criados: number;
+    jaExistiam: number;
+    bloqueados: Array<{ projetoId: string; projetoNome: string; motivo: string }>;
+  }> => {
+    // Buscar todos os projetos aprovados
+    const { data: projetos, error } = await supabase
+      .from('projects')
+      .select('id, title, professor_id, status, start_date, end_date, campus, category')
+      .eq('status', 'aprovado');
+
+    if (error) throw new AppError(`Erro ao buscar projetos: ${error.message}`);
+    if (!projetos || projetos.length === 0) {
+      return { projetosAprovados: 0, criados: 0, jaExistiam: 0, bloqueados: [] };
+    }
+
+    let criados = 0;
+    let jaExistiam = 0;
+    const bloqueados: Array<{ projetoId: string; projetoNome: string; motivo: string }> = [];
+
+    for (const proj of projetos) {
+      if (!proj.professor_id) {
+        bloqueados.push({ projetoId: proj.id, projetoNome: proj.title, motivo: 'professor_id ausente' });
+        continue;
+      }
+
+      const projetoModel: Projeto = {
+        id: proj.id,
+        nome: proj.title,
+        descricao: '',
+        professorId: proj.professor_id,
+        professorEmail: '',
+        professorResponsavel: '',
+        campus: proj.campus,
+        areaTematica: proj.category || 'Extensão',
+        dataInicio: proj.start_date || '',
+        dataTermino: proj.end_date || '',
+        cargaHoraria: 0,
+        status: 'aprovado',
+        participantesCount: 0,
+        alunosParticipantes: [],
+        documentosComprobatorios: [],
+      };
+
+      const result = await certificadosService.gerarCertificadoProfessor(projetoModel);
+      if (result.blocked) {
+        bloqueados.push({ projetoId: proj.id, projetoNome: proj.title, motivo: result.blocked });
+      } else if (result.created) {
+        criados++;
+      } else {
+        jaExistiam++;
+      }
+    }
+
+    return { projetosAprovados: projetos.length, criados, jaExistiam, bloqueados };
   },
 };

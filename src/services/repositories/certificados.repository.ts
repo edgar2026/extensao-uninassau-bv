@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CertificateRow, CertificateView, PublicCertificateResult, Certificado } from '../../types';
+import { CertificateRow, CertificateView, PublicCertificateResult, Certificado, CertificadoProfessor } from '../../types';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { AppError } from '../../lib/errors';
 
@@ -44,10 +44,6 @@ export const certificadosRepository = {
   findAll: async (): Promise<CertificateViewWithTitulacao[]> => {
     if (!isSupabaseConfigured) return [];
 
-    const { data, error } = await supabase
-      .rpc('validate_certificate', { p_code: '__none__' })
-      .select();
-
     // Since RPC only works for single lookups, use direct query
     const { data: rows, error: rowsError } = await supabase
       .from('certificates')
@@ -62,7 +58,9 @@ export const certificadosRepository = {
         revocation_reason,
         student_id,
         project_id,
-        projects!certificates_project_id_fkey(title, start_date, end_date, workload_hours, campus, professor_id),
+        professor_id,
+        tipo,
+        projects!certificates_project_id_fkey(title, start_date, end_date, workload_hours, campus, professor_id, category),
         profiles!certificates_student_id_fkey(first_name, last_name, nome_completo, matricula)
       `)
       .order('issued_at', { ascending: false });
@@ -115,6 +113,8 @@ export const certificadosRepository = {
         campus: proj?.campus || null,
         professor_name: profData?.name || '',
         professor_titulacao: profData?.titulacao || null,
+        tipo: (row as any).tipo || 'aluno_participante',
+        professor_id: (row as any).professor_id || null,
       };
     });
   },
@@ -190,13 +190,104 @@ export const certificadosRepository = {
     });
   },
 
-  /** Public validation via RPC - no auth required, returns only public data */
+  /** Public validation - supports student and professor orientation certificates */
   validatePublic: async (code: string): Promise<PublicCertificateResult> => {
-    const { data, error } = await supabase
-      .rpc('validate_certificate', { p_code: code });
+    const cleanCode = code.trim();
+    if (!cleanCode) return { valid: false, error: 'Código inválido' };
 
-    if (error) throw new AppError(`Erro na validação: ${error.message}`, 500);
-    return data as PublicCertificateResult;
+    // 1. Try standard RPC
+    try {
+      const { data, error } = await supabase
+        .rpc('validate_certificate', { p_code: cleanCode });
+
+      if (!error && data && (data as PublicCertificateResult).valid && (data as PublicCertificateResult).certificate) {
+        return data as PublicCertificateResult;
+      }
+    } catch (e) {
+      // Fallback below
+    }
+
+    // 2. Direct query fallback (handles professor certificates and direct lookup)
+    const { data: rows, error: queryError } = await supabase
+      .from('certificates')
+      .select(`
+        id,
+        public_code,
+        codigo_certificado,
+        validation_uuid,
+        status,
+        issued_at,
+        revoked_at,
+        revocation_reason,
+        student_id,
+        professor_id,
+        tipo,
+        projects!certificates_project_id_fkey(title, start_date, end_date, workload_hours, campus, professor_id, category)
+      `)
+      .or(`public_code.eq.${cleanCode},codigo_certificado.eq.${cleanCode},validation_uuid.eq.${cleanCode}`)
+      .limit(1);
+
+    if (queryError || !rows || rows.length === 0) {
+      return { valid: false, error: 'Certificado não encontrado' };
+    }
+
+    const row = rows[0] as any;
+    const proj = row.projects;
+    const isProf = row.tipo === 'professor_orientador';
+    
+    let profName = '';
+    let profTitulacao: string | null = null;
+    const profIdToFetch = isProf ? (row.professor_id || proj?.professor_id) : proj?.professor_id;
+    
+    if (profIdToFetch) {
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, nome_completo, titulacao')
+        .eq('id', profIdToFetch)
+        .single();
+      if (p) {
+        profName = p.nome_completo || `${p.first_name} ${p.last_name}`.trim();
+        profTitulacao = p.titulacao || null;
+      }
+    }
+
+    let studentName = '';
+    if (!isProf && row.student_id) {
+      const { data: st } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, nome_completo')
+        .eq('id', row.student_id)
+        .single();
+      if (st) {
+        studentName = st.nome_completo || `${st.first_name} ${st.last_name}`.trim();
+      }
+    }
+
+    const startDate = proj?.start_date || '';
+    const endDate = proj?.end_date || '';
+    const period = startDate && endDate ? `${startDate} a ${endDate}` : '';
+
+    return {
+      valid: true,
+      certificate: {
+        student_name: studentName,
+        project_title: proj?.title || 'Projeto de Extensão',
+        period,
+        workload_hours: proj?.workload_hours || 0,
+        campus: proj?.campus || null,
+        professor_name: profName,
+        professor_titulacao: profTitulacao,
+        public_code: row.public_code,
+        codigo_certificado: row.codigo_certificado,
+        validation_uuid: row.validation_uuid,
+        status: row.status,
+        tipo: row.tipo || (isProf ? 'professor_orientador' : 'aluno_participante'),
+        categoria: proj?.category || 'Extensão',
+        issued_at: row.issued_at,
+        revoked_at: row.revoked_at,
+        revocation_reason: row.revocation_reason,
+      },
+    };
   },
 
   /** Revoke a certificate (admin only) */
@@ -256,6 +347,110 @@ export const certificadosRepository = {
     return data as CertificateRow;
   },
 
+  /** Find professor orientation certificates by professor_id */
+  findByProfessorId: async (professorId: string): Promise<CertificadoProfessor[]> => {
+    if (!isSupabaseConfigured) return [];
+
+    const { data: rows, error } = await supabase
+      .from('certificates')
+      .select(`
+        id,
+        public_code,
+        codigo_certificado,
+        validation_uuid,
+        status,
+        issued_at,
+        revoked_at,
+        revocation_reason,
+        professor_id,
+        project_id,
+        projects!certificates_project_id_fkey(title, start_date, end_date, campus, category)
+      `)
+      .eq('tipo', 'professor_orientador')
+      .eq('professor_id', professorId)
+      .order('issued_at', { ascending: false });
+
+    if (error) throw new AppError(`Erro ao buscar certificados do professor: ${error.message}`, 500);
+    if (!rows) return [];
+
+    // Fetch professor profile
+    const { data: profProfile } = await supabase
+      .from('profiles')
+      .select('id, first_name, last_name, nome_completo, titulacao, campus')
+      .eq('id', professorId)
+      .single();
+
+    const profName = profProfile
+      ? (profProfile.nome_completo || `${profProfile.first_name} ${profProfile.last_name}`.trim())
+      : 'Professor';
+    const profTitulacao = profProfile?.titulacao || '';
+
+    return rows.map(row => {
+      const proj = row.projects as any;
+      return {
+        id: row.id,
+        projetoId: row.project_id,
+        projetoNome: proj?.title || 'Projeto',
+        projetoCategoria: proj?.category || 'Extensão',
+        professorId: row.professor_id || professorId,
+        professorNome: profName,
+        professorTitulacao: profTitulacao,
+        dataInicio: proj?.start_date || '',
+        dataTermino: proj?.end_date || '',
+        dataEmissao: (row.issued_at || '').split('T')[0],
+        unidade: proj?.campus || '',
+        codigoPublico: row.public_code,
+        codigoCertificado: row.codigo_certificado || '',
+        validationUuid: row.validation_uuid,
+        situacao: row.status === 'valido' ? 'Válido' : 'Revogado',
+        motivoRevogacao: row.revocation_reason || undefined,
+      };
+    });
+  },
+
+  /** Create a professor orientation certificate (idempotent — uses unique index) */
+  createProfessorCertificate: async (professorId: string, projectId: string): Promise<{ created: boolean; id?: string; error?: string }> => {
+    if (!isSupabaseConfigured) return { created: false, error: 'Supabase not configured' };
+
+    // Check if already exists
+    const { data: existing } = await supabase
+      .from('certificates')
+      .select('id')
+      .eq('tipo', 'professor_orientador')
+      .eq('professor_id', professorId)
+      .eq('project_id', projectId)
+      .maybeSingle();
+
+    if (existing) return { created: false, id: existing.id };
+
+    // Generate unique public code
+    const { data: pubData, error: pubError } = await supabase.rpc('generate_unique_public_code');
+    if (pubError) return { created: false, error: `Código: ${pubError.message}` };
+
+    const { data, error } = await supabase
+      .from('certificates')
+      .insert({
+        tipo: 'professor_orientador',
+        professor_id: professorId,
+        project_id: projectId,
+        student_id: null,
+        public_code: pubData as string,
+        codigo_certificado: null,
+        validation_uuid: crypto.randomUUID(),
+        status: 'valido',
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      // Unique constraint violation = already exists (race condition)
+      if (error.code === '23505') return { created: false };
+      return { created: false, error: error.message };
+    }
+
+    return { created: true, id: data.id };
+  },
+
   /** Convert CertificateView to frontend Certificado model */
   toCertificado: (view: CertificateViewWithTitulacao): Certificado => {
     return {
@@ -277,6 +472,8 @@ export const certificadosRepository = {
       situacao: view.status === 'valido' ? 'Válido' : 'Revogado',
       uuid: view.validation_uuid,
       motivoRevogacao: view.revocation_reason || undefined,
+      tipo: ((view as any).tipo as 'aluno_participante' | 'professor_orientador') || 'aluno_participante',
+      professorId: (view as any).professor_id || undefined,
     };
   },
 };

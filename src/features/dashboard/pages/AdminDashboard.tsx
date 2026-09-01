@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { projetosService } from '../../../services/projetos.service';
 import { certificadosService } from '../../../services/certificados.service';
 import { alunosService } from '../../../services/alunos.service';
-import { Projeto, Certificado } from '../../../types';
+import { Projeto, Certificado, campusDisplay, CAMPUS_OPTIONS } from '../../../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line 
@@ -37,6 +37,9 @@ export const AdminDashboard: React.FC = () => {
       setTotalAlunos(stats.totalCount);
       setCursosMap(stats.cursosMap);
       setIsLoading(false);
+    }).catch((err) => {
+      console.error('Erro ao carregar dados do painel:', err);
+      setIsLoading(false);
     });
   }, []);
 
@@ -46,15 +49,14 @@ export const AdminDashboard: React.FC = () => {
 
   const totalProjetos = projetos.length;
   const aprovados = projetos.filter(p => p.status === 'aprovado').length;
-  const pendentesAnalise = projetos.filter(p => p.status === 'enviado').length;
+  const pendentesAnalise = projetos.filter(p => p.status === 'enviado' || p.status === 'reenviado').length;
   const totalCertificados = certificados.length;
 
-  // Projetos por unidade — calculado dos dados reais
-  const unidades = Array.from(new Set(projetos.map(p => p.unidade).filter(Boolean))) as string[];
-  const projetosPorUnidade = unidades.map(u => ({
-    name: u.replace('Campus Zona ', 'Campus ').replace('Centro Universitário - ', ''),
-    Projetos: projetos.filter(p => p.unidade === u).length
-  }));
+  // Projetos por campus — usando o campo correto p.campus
+  const projetosPorUnidade = CAMPUS_OPTIONS.map(opt => ({
+    name: opt.label.replace('UNINASSAU ', ''),
+    Projetos: projetos.filter(p => p.campus === opt.value).length,
+  })).filter(item => item.Projetos > 0);
 
   const participantesPorCurso = Object.entries(cursosMap)
     .map(([name, val]) => ({ name: name.substring(0, 14), Alunos: Number(val) }))

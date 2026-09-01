@@ -218,57 +218,95 @@ export const ValidationPage: React.FC = () => {
 
                   {/* DETAILS BODY */}
                   <div className="p-8 space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                      
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Aluno Diplomado</span>
-                        <span className="text-slate-800 font-bold text-sm mt-1">{certificate.alunoNome}</span>
-                        <span className="text-xs text-slate-400 mt-0.5">Matrícula: {certificate.alunoMatricula}</span>
-                      </div>
+                    {certificate.tipo === 'professor_orientador' ? (
+                      /* PROFESSOR ORIENTATION CERTIFICATE DETAILS */
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tipo de Documento</span>
+                          <span className="text-cyan-800 font-bold text-sm mt-1">Certificado de Orientação de Projeto de Extensão</span>
+                          <span className="text-xs text-slate-400 mt-0.5">Orientação Docente Homologada</span>
+                        </div>
 
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Projeto / Atividade</span>
-                        <span className="text-slate-800 font-bold text-sm mt-1">{certificate.projetoNome}</span>
-                        <span className="text-xs text-slate-400 mt-0.5">Unidade: {certificate.unidade}</span>
-                      </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Professor Orientador</span>
+                          <span className="text-slate-800 font-bold text-sm mt-1">
+                            {certificate.titulacaoProfessor ? `${certificate.titulacaoProfessor} ` : ''}{certificate.professorResponsavel}
+                          </span>
+                          <span className="text-xs text-slate-400 mt-0.5">Titulação: {certificate.titulacaoProfessor || 'Não informada'}</span>
+                        </div>
 
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Professor Responsável</span>
-                        <span className="text-slate-800 font-bold text-sm mt-1">{certificate.professorResponsavel}</span>
-                        <span className="text-xs text-slate-400 mt-0.5">Titulação: {certificate.titulacaoProfessor}</span>
-                      </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Projeto Orientado</span>
+                          <span className="text-slate-800 font-bold text-sm mt-1">{certificate.projetoNome}</span>
+                          <span className="text-xs text-slate-400 mt-0.5">Unidade: {certificate.unidade || 'UNINASSAU'}</span>
+                        </div>
 
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Metadados de Carga Horária</span>
-                        <div className="flex items-center gap-4 mt-1">
-                          <div className="flex items-center gap-1.5 text-slate-700 text-xs font-semibold">
-                            <Clock className="h-4 w-4 text-slate-400" />
-                            <span>{certificate.cargaHoraria} horas totais</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-slate-700 text-xs font-semibold">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Período de Realização</span>
+                          <div className="flex items-center gap-2 mt-1 text-slate-700 text-xs font-semibold">
                             <Calendar className="h-4 w-4 text-slate-400" />
-                            <span>{certificate.dataInicio.substring(0, 4)}</span>
+                            <span>
+                              {certificate.dataInicio && certificate.dataTermino
+                                ? `${certificate.dataInicio} a ${certificate.dataTermino}`
+                                : 'Período regular'}
+                            </span>
                           </div>
                         </div>
                       </div>
+                    ) : (
+                      /* STUDENT PARTICIPANT CERTIFICATE DETAILS */
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Aluno Diplomado</span>
+                          <span className="text-slate-800 font-bold text-sm mt-1">{certificate.alunoNome}</span>
+                          <span className="text-xs text-slate-400 mt-0.5">Matrícula: {certificate.alunoMatricula || 'N/A'}</span>
+                        </div>
 
-                    </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Projeto / Atividade</span>
+                          <span className="text-slate-800 font-bold text-sm mt-1">{certificate.projetoNome}</span>
+                          <span className="text-xs text-slate-400 mt-0.5">Unidade: {certificate.unidade || 'UNINASSAU'}</span>
+                        </div>
+
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Professor Responsável</span>
+                          <span className="text-slate-800 font-bold text-sm mt-1">{certificate.professorResponsavel}</span>
+                          <span className="text-xs text-slate-400 mt-0.5">Titulação: {certificate.titulacaoProfessor || 'Prof.'}</span>
+                        </div>
+
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Metadados de Carga Horária</span>
+                          <div className="flex items-center gap-4 mt-1">
+                            <div className="flex items-center gap-1.5 text-slate-700 text-xs font-semibold">
+                              <Clock className="h-4 w-4 text-slate-400" />
+                              <span>{certificate.cargaHoraria} horas totais</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-slate-700 text-xs font-semibold">
+                              <Calendar className="h-4 w-4 text-slate-400" />
+                              <span>{certificate.dataInicio ? certificate.dataInicio.substring(0, 4) : ''}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="h-[1px] bg-slate-100" />
 
                     {/* METADATA BLOCK */}
                     <div className="bg-slate-50 p-4 rounded-2xl flex flex-col md:flex-row justify-between gap-4">
                       <div className="space-y-1.5 text-xs text-slate-505">
+                        {certificate.codigoCertificado && (
+                          <div>
+                            <span className="font-semibold text-slate-700">Código de Registro:</span>{' '}
+                            <code className="bg-slate-200/60 px-1.5 py-0.5 rounded font-mono text-xs">{certificate.codigoCertificado}</code>
+                          </div>
+                        )}
                         <div>
-                          <span className="font-semibold text-slate-700">Código de Certificado:</span>{' '}
-                          <code className="bg-slate-200/60 px-1.5 py-0.5 rounded font-mono text-xs">{certificate.codigoCertificado}</code>
-                        </div>
-                        <div>
-                          <span className="font-semibold text-slate-700">Autenticador Único:</span>{' '}
+                          <span className="font-semibold text-slate-700">Código de Autenticação:</span>{' '}
                           <code className="bg-slate-200/60 px-1.5 py-0.5 rounded font-mono text-xs">{certificate.codigoAutenticacao}</code>
                         </div>
                         <div>
-                          <span className="font-semibold text-slate-700">UUID de Autenticação:</span>{' '}
+                          <span className="font-semibold text-slate-700">UUID de Validação:</span>{' '}
                           <span className="font-mono text-[10px]">{certificate.uuid}</span>
                         </div>
                       </div>
@@ -279,7 +317,7 @@ export const ValidationPage: React.FC = () => {
                           <span className="text-[8px] text-slate-400 uppercase tracking-wider font-semibold mt-1">Autenticação QR</span>
                         </div>
                         <div className="text-slate-400 text-[10px] max-w-[120px] leading-tight">
-                          Certificado gerado e assinado eletronicamente em {new Date(certificate.dataEmissao).toLocaleDateString('pt-BR')}.
+                          Certificado gerado e assinado eletronicamente em {certificate.dataEmissao ? new Date(certificate.dataEmissao.includes('T') ? certificate.dataEmissao : certificate.dataEmissao + 'T12:00:00').toLocaleDateString('pt-BR') : ''}.
                         </div>
                       </div>
                     </div>

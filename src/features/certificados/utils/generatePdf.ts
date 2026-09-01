@@ -1,11 +1,11 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Certificado } from '../../../types';
+import { Certificado, CertificadoProfessor } from '../../../types';
 
 const PDF_CAPTURE_DELAY_MS = 1500;
 
 export async function generateCertificadoPdf(
-  cert: Certificado,
+  cert: Certificado | CertificadoProfessor,
   containerId: string,
 ): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, PDF_CAPTURE_DELAY_MS));
@@ -36,5 +36,13 @@ export async function generateCertificadoPdf(
   pdf.addImage(canvasFrente.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 297, 210);
   pdf.addPage();
   pdf.addImage(canvasVerso.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 297, 210);
-  pdf.save(`certificado_${cert.codigoCertificado}.pdf`);
+  
+  const fileCode = 'codigoCertificado' in cert && cert.codigoCertificado 
+    ? cert.codigoCertificado 
+    : 'codigoPublico' in cert 
+      ? (cert as CertificadoProfessor).codigoPublico 
+      : (cert as Certificado).codigoAutenticacao;
+      
+  pdf.save(`certificado_${fileCode}.pdf`);
 }
+
