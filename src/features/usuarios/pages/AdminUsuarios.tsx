@@ -21,16 +21,11 @@ interface CreateUsuarioForm {
 }
 import {
   Plus, Trash2, X, KeyRound, Clock, CheckCircle, Copy, AlertCircle,
-  Ban, ShieldCheck, UserCheck, RotateCcw, Upload, Download, FileSpreadsheet,
+  Ban, ShieldCheck, UserCheck, RotateCcw, FileSpreadsheet,
   Eye, Edit3, Archive, RefreshCw, Search, Filter, ChevronDown
 } from 'lucide-react';
 import { PortalOverlay } from '../../../components/ui/PortalOverlay';
 import { UserAccessStatus } from '../../../types';
-import {
-  downloadStudentImportTemplate,
-  parseStudentImportFile,
-  exportStudentImportResult,
-} from '../utils/studentImportUtils';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
@@ -75,18 +70,6 @@ export const AdminUsuarios: React.FC = () => {
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const { register, handleSubmit, reset, watch } = useForm<CreateUsuarioForm>();
 
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [parsedStudents, setParsedStudents] = useState<{ matricula: string; nome_completo: string; curso: string; email: string; campus: string }[]>([]);
-  const [isParsing, setIsParsing] = useState(false);
-  const [parseError, setParseError] = useState<string | null>(null);
-
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importResult, setImportResult] = useState<StudentImportResult | null>(null);
-  const [showResultModal, setShowResultModal] = useState(false);
-
-  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -96,10 +79,6 @@ export const AdminUsuarios: React.FC = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteDependencies, setDeleteDependencies] = useState<string[] | null>(null);
-
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [importHistory, setImportHistory] = useState<{ id: number; data: string; acao: string; detalhes: string }[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const [showViewCodeModal, setShowViewCodeModal] = useState(false);
   const [viewCodeData, setViewCodeData] = useState<{ nome: string; purpose: string; created_at: string; code: string } | null>(null);
@@ -384,72 +363,6 @@ export const AdminUsuarios: React.FC = () => {
     }
   };
 
-  const handleDownloadTemplate = async () => {
-    setIsDownloadingTemplate(true);
-    try {
-      downloadStudentImportTemplate();
-    } catch {
-      setCodeError('Erro ao baixar o modelo.');
-    } finally {
-      setIsDownloadingTemplate(false);
-    }
-  };
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImportFile(file);
-    setParseError(null);
-    setParsedStudents([]);
-    setIsParsing(true);
-
-    try {
-      const students = await parseStudentImportFile(file);
-      setParsedStudents(students);
-      if (students.length === 0) {
-        setParseError('Nenhum aluno válido encontrado na planilha.');
-      }
-    } catch (err: unknown) {
-      setParseError(err instanceof Error ? err.message : 'Erro ao processar o arquivo.');
-    } finally {
-      setIsParsing(false);
-    }
-  };
-
-  const handleConfirmImport = async () => {
-    if (parsedStudents.length === 0) return;
-
-    setIsImporting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('Sessão expirada.');
-
-      const response = await supabase.functions.invoke('import-students-batch', {
-        body: { students: parsedStudents },
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-
-      if (response.error) throw new Error(response.error.message || 'Erro na importação.');
-
-      const result = response.data as StudentImportResult;
-      setImportResult(result);
-      setShowConfirmModal(false);
-      setShowResultModal(true);
-      await fetchUsuarios();
-    } catch (err: unknown) {
-      setParseError(err instanceof Error ? err.message : 'Erro ao importar alunos.');
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  const handleExportResult = () => {
-    if (importResult) {
-      exportStudentImportResult(importResult.students);
-    }
-  };
-
   const handleExportStudents = async () => {
     setIsExporting(true);
     try {
@@ -460,28 +373,6 @@ export const AdminUsuarios: React.FC = () => {
       setCodeError('Erro ao exportar alunos.');
     } finally {
       setIsExporting(false);
-    }
-  };
-
-  const handleShowHistory = async () => {
-    setIsLoadingHistory(true);
-    setShowHistoryModal(true);
-    try {
-      const history = await usuariosService.getImportHistory();
-      setImportHistory(history);
-    } catch {
-      setCodeError('Erro ao carregar histórico.');
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
-
-  const handleExportHistory = async () => {
-    try {
-      const { exportImportHistory } = await import('../utils/studentImportUtils');
-      exportImportHistory(importHistory);
-    } catch {
-      setCodeError('Erro ao exportar histórico.');
     }
   };
 
@@ -623,18 +514,6 @@ export const AdminUsuarios: React.FC = () => {
             </button>
           )}
           <button
-            onClick={handleDownloadTemplate}
-            disabled={isDownloadingTemplate}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-          >
-            {isDownloadingTemplate ? (
-              <span className="w-3.5 h-3.5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Download className="h-3.5 w-3.5" />
-            )}
-            Modelo XLSX
-          </button>
-          <button
             onClick={handleExportStudents}
             disabled={isExporting}
             className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
@@ -645,19 +524,6 @@ export const AdminUsuarios: React.FC = () => {
               <FileSpreadsheet className="h-3.5 w-3.5" />
             )}
             Exportar Alunos
-          </button>
-          <button
-            onClick={handleShowHistory}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-          >
-            <Clock className="h-3.5 w-3.5" />
-            Histórico
-          </button>
-          <button
-            onClick={() => { setShowImportModal(true); setImportFile(null); setParsedStudents([]); setParseError(null); }}
-            className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-cyan-500/10"
-          >
-            <Upload className="h-4 w-4" /> Importar Alunos
           </button>
           <button
             onClick={() => { setShowCreateModal(true); setCreateStep('select'); setSelectedRole(null); setCreateError(null); reset(); }}
@@ -1439,326 +1305,6 @@ export const AdminUsuarios: React.FC = () => {
               <button
                 onClick={() => { setShowResetRequestsModal(false); setPendingResets([]); }}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </PortalOverlay>
-      )}
-
-      {/* Import Modal */}
-      {showImportModal && (
-        <PortalOverlay onClose={() => { setShowImportModal(false); setImportFile(null); setParsedStudents([]); setParseError(null); }}>
-          <div className="bg-white rounded-3xl p-8 max-w-lg w-full border border-slate-200 shadow-2xl flex flex-col gap-5 animate-slide-up">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <FileSpreadsheet className="h-4 w-4 text-cyan-600" />
-                Importar Alunos em Massa
-              </h3>
-              <button onClick={() => { setShowImportModal(false); setImportFile(null); setParsedStudents([]); setParseError(null); }} className="text-slate-400 hover:text-slate-600">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs">
-              <p className="text-slate-700 font-semibold mb-2">Formato da planilha:</p>
-              <ul className="text-slate-600 space-y-1 list-disc list-inside">
-                <li>Aba <strong>ALUNOS</strong> com colunas: matricula, nome_completo, curso, email, campus</li>
-                <li>Matrícula obrigatória e única</li>
-                <li>Nome completo e curso obrigatórios</li>
-                <li>Valores de campus: GRAÇAS, CAXANGÁ, BOA_VIAGEM</li>
-                <li>Máximo 500 linhas</li>
-                <li>Baixe o modelo clicando em "Modelo XLSX" acima</li>
-              </ul>
-            </div>
-
-            <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-cyan-400 transition">
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleFileSelect}
-                className="hidden"
-                id="import-students-file"
-              />
-              <label htmlFor="import-students-file" className="cursor-pointer flex flex-col items-center gap-2">
-                {isParsing ? (
-                  <span className="w-6 h-6 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Upload className="h-8 w-8 text-slate-400" />
-                )}
-                {importFile ? (
-                  <span className="text-slate-700 font-semibold text-sm">{importFile.name}</span>
-                ) : (
-                  <span className="text-slate-500 text-sm">Clique para selecionar o arquivo XLSX</span>
-                )}
-              </label>
-            </div>
-
-            {parseError && (
-              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-700 font-semibold">
-                {parseError}
-              </div>
-            )}
-
-            {parsedStudents.length > 0 && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-xs">
-                <p className="text-emerald-800 font-semibold mb-2">
-                  {parsedStudents.length} aluno(s) encontrado(s) na planilha.
-                </p>
-                <div className="flex flex-wrap gap-3 text-emerald-700">
-                  <span>Total: <strong>{parsedStudents.length}</strong></span>
-                  <span>E-mails únicos: <strong>{new Set(parsedStudents.map(s => s.email)).size}</strong></span>
-                  <span>Matrículas únicas: <strong>{new Set(parsedStudents.map(s => s.matricula)).size}</strong></span>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => { setShowImportModal(false); setImportFile(null); setParsedStudents([]); setParseError(null); }}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => { setShowImportModal(false); setShowConfirmModal(true); }}
-                disabled={parsedStudents.length === 0 || isParsing}
-                className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold transition disabled:opacity-50 flex items-center gap-1.5"
-              >
-                <Upload className="h-3.5 w-3.5" />
-                Confirmar Importação
-              </button>
-            </div>
-          </div>
-        </PortalOverlay>
-      )}
-
-      {/* Confirm Import Modal */}
-      {showConfirmModal && (
-        <PortalOverlay onClose={() => { setShowConfirmModal(false); setIsImporting(false); }}>
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full border border-slate-200 shadow-2xl flex flex-col gap-5 animate-slide-up">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-                Confirmar Importação
-              </h3>
-              <button onClick={() => { setShowConfirmModal(false); setIsImporting(false); }} className="text-slate-400 hover:text-slate-600">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800">
-              <p className="font-semibold mb-2">
-                Serão importados {parsedStudents.length} aluno(s).
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-amber-700">
-                <li>Alunos novos serão criados com código de primeiro acesso</li>
-                <li>Alunos já cadastrados serão reutilizados</li>
-                <li>E-mails de professor/admin serão bloqueados</li>
-                <li>Esta ação não pode ser desfeita</li>
-              </ul>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => { setShowConfirmModal(false); setIsImporting(false); }}
-                disabled={isImporting}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmImport}
-                disabled={isImporting}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-              >
-                {isImporting ? (
-                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <CheckCircle className="h-3.5 w-3.5" />
-                )}
-                {isImporting ? 'Importando...' : 'Confirmar'}
-              </button>
-            </div>
-          </div>
-        </PortalOverlay>
-      )}
-
-      {/* Result Modal */}
-      {showResultModal && importResult && (
-        <PortalOverlay onClose={() => { setShowResultModal(false); setImportResult(null); }}>
-          <div className="bg-white rounded-3xl p-8 max-w-lg w-full border border-slate-200 shadow-2xl flex flex-col gap-5 animate-slide-up max-h-[85vh] overflow-y-auto">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-emerald-600" />
-                Resultado da Importação
-              </h3>
-              <button onClick={() => { setShowResultModal(false); setImportResult(null); }} className="text-slate-400 hover:text-slate-600">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Total</span>
-                <span className="text-xl font-bold text-slate-800">{importResult.summary.total_linhas}</span>
-              </div>
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
-                <span className="text-emerald-600 block text-[10px] uppercase font-bold">Criados</span>
-                <span className="text-xl font-bold text-emerald-700">{importResult.summary.criados}</span>
-              </div>
-              <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-3 text-center">
-                <span className="text-cyan-600 block text-[10px] uppercase font-bold">Reutilizados</span>
-                <span className="text-xl font-bold text-cyan-700">{importResult.summary.reutilizados}</span>
-              </div>
-              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
-                <span className="text-rose-600 block text-[10px] uppercase font-bold">Erros</span>
-                <span className="text-xl font-bold text-rose-700">{importResult.summary.erros}</span>
-              </div>
-            </div>
-
-            {Object.keys(importResult.summary.distribuicao_campus).length > 0 && (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
-                <span className="text-slate-500 font-semibold block mb-1">Distribuição por Campus:</span>
-                <div className="flex flex-wrap gap-3">
-                  {Object.entries(importResult.summary.distribuicao_campus).map(([campus, count]) => (
-                    <span key={campus} className="bg-white border border-slate-200 px-2 py-0.5 rounded-lg text-slate-700 font-semibold">
-                      {campus}: <strong>{count}</strong>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {Object.keys(importResult.summary.distribuicao_curso).length > 0 && (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
-                <span className="text-slate-500 font-semibold block mb-1">Distribuição por Curso:</span>
-                <div className="flex flex-wrap gap-3">
-                  {Object.entries(importResult.summary.distribuicao_curso).map(([curso, count]) => (
-                    <span key={curso} className="bg-white border border-slate-200 px-2 py-0.5 rounded-lg text-slate-700 font-semibold">
-                      {curso}: <strong>{count}</strong>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {importResult.students.filter(s => s.codigo_primeiro_acesso).length > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-amber-800 font-semibold">Códigos de primeiro acesso gerados</p>
-                    <p className="text-amber-700 mt-1">
-                      Os códigos abaixo são exibidos apenas nesta tela. Anote ou copie-os.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 space-y-1 max-h-40 overflow-y-auto">
-                  {importResult.students
-                    .filter(s => s.codigo_primeiro_acesso)
-                    .map(s => (
-                      <div key={s.email} className="flex items-center justify-between bg-white border border-amber-200 rounded-lg px-3 py-1.5">
-                        <span className="text-slate-700 font-semibold">{s.nome_completo}</span>
-                        <code className="font-mono font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded text-[10px]">
-                          {s.codigo_primeiro_acesso}
-                        </code>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-
-            {importResult.errors.length > 0 && (
-              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs max-h-32 overflow-y-auto">
-                <span className="text-rose-700 font-semibold block mb-1">Erros:</span>
-                <ul className="text-rose-600 list-disc list-inside space-y-0.5">
-                  {importResult.errors.map((err, i) => <li key={i}>{err}</li>)}
-                </ul>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={handleExportResult}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-              >
-                <Download className="h-3.5 w-3.5" />
-                Exportar Resultado
-              </button>
-              <button
-                onClick={() => { setShowResultModal(false); setImportResult(null); }}
-                className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold transition"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </PortalOverlay>
-      )}
-
-      {/* History Modal */}
-      {showHistoryModal && (
-        <PortalOverlay onClose={() => { setShowHistoryModal(false); setImportHistory([]); }}>
-          <div className="bg-white rounded-3xl p-8 max-w-2xl w-full border border-slate-200 shadow-2xl flex flex-col gap-5 animate-slide-up max-h-[85vh] overflow-y-auto">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <Clock className="h-4 w-4 text-cyan-600" />
-                Histórico de Importações
-              </h3>
-              <button onClick={() => { setShowHistoryModal(false); setImportHistory([]); }} className="text-slate-400 hover:text-slate-600">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {isLoadingHistory ? (
-              <div className="flex justify-center py-8">
-                <span className="w-6 h-6 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : importHistory.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-xs">
-                Nenhum registro de importação encontrado.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50/75 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      <th className="px-4 py-3">Data</th>
-                      <th className="px-4 py-3">Ação</th>
-                      <th className="px-4 py-3">Detalhes</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-600">
-                    {importHistory.map((h) => (
-                      <tr key={h.id} className="hover:bg-slate-50/50">
-                        <td className="px-4 py-3 whitespace-nowrap">{h.data}</td>
-                        <td className="px-4 py-3">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-700">
-                            {h.acao}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-slate-500">{h.detalhes}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={handleExportHistory}
-                disabled={importHistory.length === 0}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <Download className="h-3.5 w-3.5" />
-                Exportar Histórico
-              </button>
-              <button
-                onClick={() => { setShowHistoryModal(false); setImportHistory([]); }}
-                className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold transition"
               >
                 Fechar
               </button>
