@@ -20,7 +20,6 @@ import { DataStep } from '../components/DataStep';
 import { ParticipantsStep } from '../components/ParticipantsStep';
 import { DocumentStep } from '../components/DocumentStep';
 import { ReviewStep } from '../components/ReviewStep';
-import { downloadImportTemplate } from '../utils/xlsxUtils';
 
 const WIZARD_STEPS = ['Dados do Projeto', 'Participantes', 'Documento', 'Revisão'];
 
@@ -50,7 +49,6 @@ export const ProfessorProjetos: React.FC = () => {
   const [detalhesProjeto, setDetalhesProjeto] = useState<Projeto | null>(null);
   const [msgSucesso, setMsgSucesso] = useState<string | null>(null);
   const [msgErro, setMsgErro] = useState<string | null>(null);
-  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
   const [deletingProjeto, setDeletingProjeto] = useState<Projeto | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -66,20 +64,6 @@ export const ProfessorProjetos: React.FC = () => {
   useEffect(() => {
     fetchProjetos();
   }, [fetchProjetos]);
-
-  const handleDownloadTemplate = async () => {
-    setIsDownloadingTemplate(true);
-    try {
-      downloadImportTemplate();
-      setMsgSucesso('Modelo XLSX baixado com sucesso!');
-      setTimeout(() => setMsgSucesso(null), 3000);
-    } catch {
-      setMsgErro('Erro ao baixar o modelo.');
-      setTimeout(() => setMsgErro(null), 4000);
-    } finally {
-      setIsDownloadingTemplate(false);
-    }
-  };
 
   const resetForm = () => {
     setNome('');
@@ -262,18 +246,6 @@ export const ProfessorProjetos: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={handleDownloadTemplate}
-            disabled={isDownloadingTemplate}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-          >
-            {isDownloadingTemplate ? (
-              <span className="w-3.5 h-3.5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Download className="h-3.5 w-3.5" />
-            )}
-            Baixar Modelo XLSX
-          </button>
           <button
             onClick={handleOpenNovoModal}
             className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-cyan-500/10 cursor-pointer"

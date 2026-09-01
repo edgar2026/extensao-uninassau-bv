@@ -3,17 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { projetosService } from '../../../services/projetos.service';
-import { Projeto, ProjetoStatus, CampusCode, CAMPUS_OPTIONS } from '../../../types';
+import { Projeto, ProjetoStatus, CAMPUS_OPTIONS } from '../../../types';
 import {
   CheckCircle, AlertTriangle, XCircle, Eye, FileText,
-  Clock, Users, Building2, BookOpen, ShieldCheck, Filter,
-  Download, Upload, FileSpreadsheet
+  Clock, RotateCcw, Filter, Download, ChevronDown,
+  FileSpreadsheet, FileDown, X
 } from 'lucide-react';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
-import { downloadImportTemplate, exportProjectsToXlsx } from '../utils/xlsxUtils';
+import { exportProjectsToXlsx, exportProjectsToCsv, exportProjectsToPdf } from '../utils/xlsxUtils';
 
 export const AdminProjetos: React.FC = () => {
   const [projetos, setProjetos] = useState<Projeto[]>([]);
@@ -36,13 +36,9 @@ export const AdminProjetos: React.FC = () => {
   const [msgSucesso, setMsgSucesso] = useState<string | null>(null);
   const [msgErro, setMsgErro] = useState<string | null>(null);
 
-  // Import/Export states
-  const [isExporting, setIsExporting] = useState(false);
-  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importResult, setImportResult] = useState<string | null>(null);
+  // Export states
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const fetchProjetos = async () => {
     setIsLoading(true);
@@ -55,81 +51,68 @@ export const AdminProjetos: React.FC = () => {
     fetchProjetos();
   }, []);
 
-  const handleDownloadTemplate = async () => {
-    setIsDownloadingTemplate(true);
-    try {
-      downloadImportTemplate();
-      setMsgSucesso('Modelo XLSX baixado com sucesso!');
-      setTimeout(() => setMsgSucesso(null), 3000);
-    } catch (err: any) {
-      console.error('[AdminProjetos] Erro ao baixar modelo:', err);
-      setMsgErro('Erro ao baixar o modelo. Tente novamente.');
-      setTimeout(() => setMsgErro(null), 4000);
-    } finally {
-      setIsDownloadingTemplate(false);
-    }
-  };
-
-  const handleExportProjects = async () => {
-    setIsExporting(true);
-    try {
-      exportProjectsToXlsx(projetos);
-      setMsgSucesso(`${projetos.length} projeto(s) exportado(s) com sucesso!`);
-      setTimeout(() => setMsgSucesso(null), 3000);
-    } catch (err: any) {
-      console.error('[AdminProjetos] Erro ao exportar projetos:', err);
-      setMsgErro('Erro ao exportar projetos. Tente novamente.');
-      setTimeout(() => setMsgErro(null), 4000);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setImportFile(e.target.files[0]);
-      setImportResult(null);
-    }
-  };
-
-  const handleConfirmImport = async () => {
-    if (!importFile) return;
-    setIsImporting(true);
-    setImportResult(null);
-    try {
-      const XLSX = await import('xlsx');
-      const data = await importFile.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-
-      if (jsonData.length < 2) {
-        setImportResult('Erro: A planilha está vazia ou não contém dados.');
-        return;
+  // Fechar dropdown de exportação ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
       }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
-      const headers = (jsonData[0] as string[]).map(h => String(h).toLowerCase().trim());
-      const requiredCols = ['nome_projeto', 'categoria', 'email_professor', 'email_aluno'];
-      const missingCols = requiredCols.filter(col => !headers.includes(col));
+  // Base de projetos válidos para a aba e campus ativos (exclui rascunhos de docentes)
+  const baseProjetos = projetos.filter(p => {
+    if (p.status === 'rascunho') return false;
+    const isAreaMatch = activeTab === 'extensao' ? p.areaTematica === 'Extensão' : p.areaTematica === 'IC';
+    if (!isAreaMatch) return false;
+    if (campusFilter !== 'todos' && p.campus !== campusFilter) return false;
+    return true;
+  });
 
-      if (missingCols.length > 0) {
-        setImportResult(`Erro: Colunas obrigatórias não encontradas: ${missingCols.join(', ')}`);
-        return;
+  // Contagens dos 3 indicadores administrativos
+  const countPrimeiraAnalise = baseProjetos.filter(p => p.status === 'enviado').length;
+  const countCorrecaoProfessor = baseProjetos.filter(p => p.status === 'correcao_solicitada').length;
+  const countReenviados = baseProjetos.filter(p => p.status === 'reenviado').length;
+
+  // Filtragem final para a tabela
+  const filteredProjetos = baseProjetos.filter(p => {
+    if (statusFilter !== 'todos' && p.status !== statusFilter) return false;
+    return true;
+  });
+
+  // Handler unificado de exportação respeitando filtros ativos
+  const handleExport = (type: 'excel' | 'csv' | 'pdf') => {
+    setShowExportMenu(false);
+
+    if (filteredProjetos.length === 0) {
+      setMsgErro('Nenhum projeto encontrado para exportar com os filtros ativos.');
+      setTimeout(() => setMsgErro(null), 4000);
+      return;
+    }
+
+    try {
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const suffix = activeTab === 'extensao' ? 'extensao' : 'iniciacao_cientifica';
+
+      if (type === 'excel') {
+        exportProjectsToXlsx(filteredProjetos, `projetos_${suffix}_${timestamp}.xlsx`);
+        setMsgSucesso(`${filteredProjetos.length} projeto(s) exportado(s) em Excel com sucesso!`);
+      } else if (type === 'csv') {
+        exportProjectsToCsv(filteredProjetos, `projetos_${suffix}_${timestamp}.csv`);
+        setMsgSucesso(`${filteredProjetos.length} projeto(s) exportado(s) em CSV com sucesso!`);
+      } else if (type === 'pdf') {
+        exportProjectsToPdf(filteredProjetos, `relatorio_projetos_${suffix}_${timestamp}.pdf`);
+        setMsgSucesso(`Relatório PDF gerado com ${filteredProjetos.length} projeto(s)!`);
       }
-
-      const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== null && cell !== ''));
-      setImportResult(`Sucesso: ${rows.length} linha(s) encontrada(s) na planilha. A importação será processada em breve.`);
-      setTimeout(() => {
-        setShowImportModal(false);
-        setImportFile(null);
-        setImportResult(null);
-      }, 3000);
+      setTimeout(() => setMsgSucesso(null), 4000);
     } catch (err: any) {
-      console.error('[AdminProjetos] Erro ao processar importação:', err);
-      setImportResult('Erro ao processar o arquivo. Verifique o formato e tente novamente.');
-    } finally {
-      setIsImporting(false);
+      console.error('[AdminProjetos] Erro ao exportar:', err);
+      setMsgErro('Erro ao exportar arquivo. Tente novamente.');
+      setTimeout(() => setMsgErro(null), 4000);
     }
   };
 
@@ -163,7 +146,7 @@ export const AdminProjetos: React.FC = () => {
     if (!selectedProjeto || !actionType) return;
     setParecerErro(null);
 
-    // Regra 5: Correção e rejeição exigem justificativa
+    // Regra: Correção e rejeição exigem justificativa
     if (!parecerTexto.trim()) {
       setParecerErro('O parecer/justificativa é obrigatório.');
       return;
@@ -201,41 +184,64 @@ export const AdminProjetos: React.FC = () => {
     }
   };
 
-  const enviadosPendenteCount = projetos.filter(p =>
-    p.status === 'enviado' || p.status === 'reenviado' || p.status === 'correcao_solicitada'
-  ).length;
-
-  const filteredProjetos = projetos.filter(p => {
-    if (p.status === 'rascunho') return false;
-    const isAreaMatch = activeTab === 'extensao' ? p.areaTematica === 'Extensão' : p.areaTematica === 'IC';
-    if (!isAreaMatch) return false;
-    if (statusFilter !== 'todos' && p.status !== statusFilter) return false;
-    if (campusFilter !== 'todos' && p.campus !== campusFilter) return false;
-    return true;
-  });
-
   const getStatusBadge = (status: ProjetoStatus) => {
     switch (status) {
       case 'rascunho':
         return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">Rascunho</span>;
       case 'enviado':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-800 border border-cyan-300 flex items-center gap-1 animate-pulse"><Clock className="h-3 w-3 shrink-0" /> Aguardando Análise</span>;
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1">
+            <Clock className="h-3 w-3 shrink-0 text-blue-600 animate-pulse" /> Aguardando Análise
+          </span>
+        );
       case 'reenviado':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1 animate-pulse"><Clock className="h-3 w-3 shrink-0" /> Reenviado</span>;
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200 flex items-center gap-1">
+            <RotateCcw className="h-3 w-3 shrink-0 text-purple-600" /> Reenviado
+          </span>
+        );
       case 'correcao_solicitada':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1"><AlertTriangle className="h-3 w-3 shrink-0" /> Correção Solicitada</span>;
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" /> Aguardando correção do professor
+          </span>
+        );
       case 'aprovado':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1"><CheckCircle className="h-3 w-3 shrink-0" /> Aprovado</span>;
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+            <CheckCircle className="h-3 w-3 shrink-0" /> Aprovado
+          </span>
+        );
       case 'rejeitado':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1"><XCircle className="h-3 w-3 shrink-0" /> Rejeitado</span>;
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+            <XCircle className="h-3 w-3 shrink-0" /> Rejeitado
+          </span>
+        );
       default:
         return null;
     }
   };
 
+  const getStatusFilterLabel = (status: string) => {
+    switch (status) {
+      case 'enviado': return 'Aguardando primeira análise';
+      case 'correcao_solicitada': return 'Aguardando correção do professor';
+      case 'reenviado': return 'Reenviados para nova análise';
+      case 'aprovado': return 'Aprovados';
+      case 'rejeitado': return 'Rejeitados';
+      default: return 'Todos';
+    }
+  };
+
+  // Textos formatados com singular / plural rigoroso
+  const textoPrimeiraAnalise = `${countPrimeiraAnalise} ${countPrimeiraAnalise === 1 ? 'projeto aguardando' : 'projetos aguardando'} primeira análise`;
+  const textoCorrecaoProfessor = `${countCorrecaoProfessor} ${countCorrecaoProfessor === 1 ? 'projeto aguardando' : 'projetos aguardando'} correção do professor`;
+  const textoReenviados = `${countReenviados} ${countReenviados === 1 ? 'projeto reenviado' : 'projetos reenviados'} para nova análise`;
+
   return (
     <div className="space-y-6 animate-fade-in text-left">
-      {/* Header */}
+      {/* Header com Título e Botão de Exportação */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900">Fila de Análise e Gestão de Projetos</h2>
@@ -244,52 +250,181 @@ export const AdminProjetos: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Botão Baixar Modelo XLSX */}
-          <button
-            onClick={handleDownloadTemplate}
-            disabled={isDownloadingTemplate}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-          >
-            {isDownloadingTemplate ? (
-              <span className="w-3.5 h-3.5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
-            ) : (
+        <div className="flex items-center gap-2">
+          {/* Botão Único de Exportar com Menu Suspenso */}
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm"
+              title="Opções de Exportação"
+            >
               <Download className="h-3.5 w-3.5" />
+              <span>Exportar</span>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showExportMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showExportMenu && (
+              <div className="absolute right-0 mt-1.5 w-52 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 animate-fade-in">
+                <button
+                  onClick={() => handleExport('excel')}
+                  className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer transition"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Exportar Excel (.xlsx)</span>
+                </button>
+                <button
+                  onClick={() => handleExport('csv')}
+                  className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer transition"
+                >
+                  <FileText className="h-4 w-4 text-cyan-600 shrink-0" />
+                  <span>Exportar CSV (.csv)</span>
+                </button>
+                <button
+                  onClick={() => handleExport('pdf')}
+                  className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer transition"
+                >
+                  <FileDown className="h-4 w-4 text-rose-600 shrink-0" />
+                  <span>Exportar PDF (.pdf)</span>
+                </button>
+              </div>
             )}
-            Baixar Modelo XLSX
-          </button>
-
-          {/* Botão Importar XLSX */}
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            Importar XLSX
-          </button>
-
-          {/* Botão Exportar Projetos */}
-          <button
-            onClick={handleExportProjects}
-            disabled={isExporting}
-            className="bg-emerald-500 hover:bg-emerald-400 text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-sm"
-          >
-            {isExporting ? (
-              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-            )}
-            Exportar Projetos
-          </button>
-
-          {enviadosPendenteCount > 0 && (
-            <div className="bg-cyan-50 border border-cyan-200 text-cyan-800 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm">
-              <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-ping" />
-              {enviadosPendenteCount} projeto(s) aguardando análise!
-            </div>
-          )}
+          </div>
         </div>
       </div>
+
+      {/* Cards de Acompanhamento (Indicadores Administrativos) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Card 1: Aguardando primeira análise */}
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === 'enviado' ? 'todos' : 'enviado')}
+          className={`w-full text-left p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer flex items-center gap-3.5 ${
+            statusFilter === 'enviado'
+              ? 'bg-blue-50/90 border-blue-500 ring-2 ring-blue-500/20 shadow-sm'
+              : countPrimeiraAnalise > 0
+              ? 'bg-white border-blue-200/80 hover:border-blue-300 hover:bg-blue-50/30 shadow-xs'
+              : 'bg-white/60 border-slate-200/70 hover:bg-white hover:border-slate-300 opacity-75 shadow-xs'
+          }`}
+        >
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+            statusFilter === 'enviado' || countPrimeiraAnalise > 0
+              ? 'bg-blue-100 text-blue-700'
+              : 'bg-slate-100 text-slate-400'
+          }`}>
+            <Clock className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-xl font-black text-slate-900 leading-none">{countPrimeiraAnalise}</span>
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                statusFilter === 'enviado' ? 'text-blue-700' : 'text-slate-400'
+              }`}>
+                {countPrimeiraAnalise === 1 ? 'Projeto' : 'Projetos'}
+              </span>
+            </div>
+            <p className={`text-xs font-bold truncate mt-0.5 ${
+              statusFilter === 'enviado' ? 'text-blue-950' : 'text-slate-800'
+            }`}>
+              {textoPrimeiraAnalise}
+            </p>
+            <p className="text-[10px] text-blue-600/90 font-medium">Aguardando decisão administrativa</p>
+          </div>
+        </button>
+
+        {/* Card 2: Aguardando correção do professor */}
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === 'correcao_solicitada' ? 'todos' : 'correcao_solicitada')}
+          className={`w-full text-left p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer flex items-center gap-3.5 ${
+            statusFilter === 'correcao_solicitada'
+              ? 'bg-amber-50/90 border-amber-500 ring-2 ring-amber-500/20 shadow-sm'
+              : countCorrecaoProfessor > 0
+              ? 'bg-white border-amber-200/80 hover:border-amber-300 hover:bg-amber-50/30 shadow-xs'
+              : 'bg-white/60 border-slate-200/70 hover:bg-white hover:border-slate-300 opacity-75 shadow-xs'
+          }`}
+        >
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+            statusFilter === 'correcao_solicitada' || countCorrecaoProfessor > 0
+              ? 'bg-amber-100 text-amber-700'
+              : 'bg-slate-100 text-slate-400'
+          }`}>
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-xl font-black text-slate-900 leading-none">{countCorrecaoProfessor}</span>
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                statusFilter === 'correcao_solicitada' ? 'text-amber-700' : 'text-slate-400'
+              }`}>
+                {countCorrecaoProfessor === 1 ? 'Projeto' : 'Projetos'}
+              </span>
+            </div>
+            <p className={`text-xs font-bold truncate mt-0.5 ${
+              statusFilter === 'correcao_solicitada' ? 'text-amber-950' : 'text-slate-800'
+            }`}>
+              {textoCorrecaoProfessor}
+            </p>
+            <p className="text-[10px] text-amber-600/95 font-medium">Ação do docente · Admin acompanha</p>
+          </div>
+        </button>
+
+        {/* Card 3: Reenviados para nova análise */}
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === 'reenviado' ? 'todos' : 'reenviado')}
+          className={`w-full text-left p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer flex items-center gap-3.5 ${
+            statusFilter === 'reenviado'
+              ? 'bg-purple-50/90 border-purple-500 ring-2 ring-purple-500/20 shadow-sm'
+              : countReenviados > 0
+              ? 'bg-white border-purple-200/80 hover:border-purple-300 hover:bg-purple-50/30 shadow-xs'
+              : 'bg-white/60 border-slate-200/70 hover:bg-white hover:border-slate-300 opacity-75 shadow-xs'
+          }`}
+        >
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+            statusFilter === 'reenviado' || countReenviados > 0
+              ? 'bg-purple-100 text-purple-700'
+              : 'bg-slate-100 text-slate-400'
+          }`}>
+            <RotateCcw className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-xl font-black text-slate-900 leading-none">{countReenviados}</span>
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                statusFilter === 'reenviado' ? 'text-purple-700' : 'text-slate-400'
+              }`}>
+                {countReenviados === 1 ? 'Projeto' : 'Projetos'}
+              </span>
+            </div>
+            <p className={`text-xs font-bold truncate mt-0.5 ${
+              statusFilter === 'reenviado' ? 'text-purple-950' : 'text-slate-800'
+            }`}>
+              {textoReenviados}
+            </p>
+            <p className="text-[10px] text-purple-600/90 font-medium">Voltou para decisão administrativa</p>
+          </div>
+        </button>
+      </div>
+
+      {/* Barra de Filtro Ativo com Botão de Limpar */}
+      {statusFilter !== 'todos' && (
+        <div className="flex items-center justify-between bg-slate-100/70 border border-slate-200/80 px-3.5 py-2 rounded-xl text-xs animate-fade-in">
+          <div className="flex items-center gap-2 text-slate-600 font-medium">
+            <Filter className="h-3.5 w-3.5 text-slate-500" />
+            <span>
+              Filtrando por: <strong className="text-slate-900">{getStatusFilterLabel(statusFilter)}</strong> ({filteredProjetos.length} encontrado{filteredProjetos.length === 1 ? '' : 's'})
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('todos')}
+            className="text-xs font-bold text-slate-700 hover:text-slate-950 hover:underline cursor-pointer flex items-center gap-1 transition"
+          >
+            <X className="h-3.5 w-3.5" />
+            Limpar filtro (Exibir todos)
+          </button>
+        </div>
+      )}
 
       {/* Alert Messages */}
       {msgSucesso && (
@@ -340,12 +475,12 @@ export const AdminProjetos: React.FC = () => {
               onChange={e => setStatusFilter(e.target.value)}
               className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:border-cyan-500"
             >
-              <option value="todos">Todos</option>
-              <option value="enviado">Enviados ({projetos.filter(p => p.status === 'enviado').length})</option>
-              <option value="reenviado">Reenviados ({projetos.filter(p => p.status === 'reenviado').length})</option>
-              <option value="correcao_solicitada">Correção Solicitada ({projetos.filter(p => p.status === 'correcao_solicitada').length})</option>
-              <option value="aprovado">Aprovados</option>
-              <option value="rejeitado">Rejeitados</option>
+              <option value="todos">Todos os status</option>
+              <option value="enviado">Aguardando 1ª análise ({countPrimeiraAnalise})</option>
+              <option value="reenviado">Reenviados para nova análise ({countReenviados})</option>
+              <option value="correcao_solicitada">Aguardando correção do professor ({countCorrecaoProfessor})</option>
+              <option value="aprovado">Aprovados ({baseProjetos.filter(p => p.status === 'aprovado').length})</option>
+              <option value="rejeitado">Rejeitados ({baseProjetos.filter(p => p.status === 'rejeitado').length})</option>
             </select>
           </div>
 
@@ -356,7 +491,7 @@ export const AdminProjetos: React.FC = () => {
               onChange={e => setCampusFilter(e.target.value)}
               className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:border-cyan-500"
             >
-              <option value="todos">Todos</option>
+              <option value="todos">Todos os campi</option>
               {CAMPUS_OPTIONS.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
@@ -466,7 +601,7 @@ export const AdminProjetos: React.FC = () => {
               <p className="text-slate-600 bg-white p-3 rounded-xl border border-slate-200 leading-relaxed">{selectedProjeto.descricao}</p>
             </div>
 
-            {/* Alunos participantes (Regra 7 & 8) */}
+            {/* Alunos participantes */}
             <div>
               <h4 className="font-bold text-slate-800 mb-2">Alunos Participantes ({(selectedProjeto.alunosParticipantes || []).length})</h4>
               {(selectedProjeto.alunosParticipantes || []).length === 0 ? (
@@ -495,7 +630,7 @@ export const AdminProjetos: React.FC = () => {
               )}
             </div>
 
-            {/* Documentos comprobatórios (Regra 13) */}
+            {/* Documentos comprobatórios (PDF do projeto preservado) */}
             <div>
               <h4 className="font-bold text-slate-800 mb-2">Documentos Comprobatórios ({(selectedProjeto.documentosComprobatorios || []).length})</h4>
               {(selectedProjeto.documentosComprobatorios || []).length === 0 ? (
@@ -530,7 +665,7 @@ export const AdminProjetos: React.FC = () => {
               )}
             </div>
 
-            {/* Sub-formulario de justificativa (se clicou em Solicitar Correção ou Rejeitar) */}
+            {/* Sub-formulário de justificativa (Solicitar Correção ou Rejeitar) */}
             {actionType && (
               <div className="bg-amber-50 border border-amber-300 p-4 rounded-2xl space-y-2 animate-slide-up">
                 <h4 className="font-bold text-amber-900 flex items-center gap-1.5">
@@ -623,79 +758,6 @@ export const AdminProjetos: React.FC = () => {
           </div>
         </Modal>
       )}
-      {/* MODAL DE IMPORTAÇÃO */}
-      <Modal
-        isOpen={showImportModal}
-        onClose={() => { setShowImportModal(false); setImportFile(null); setImportResult(null); }}
-        title="Importar Projetos via XLSX"
-        size="md"
-      >
-        <div className="space-y-4 text-xs text-left">
-          <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
-            <p className="text-slate-700 font-semibold mb-2">Instruções:</p>
-            <ul className="text-slate-600 space-y-1 list-disc list-inside">
-              <li>Baixe o modelo XLSX antes de preencher</li>
-              <li>Preencha os dados conforme as instruções na aba INSTRUÇÕES</li>
-              <li>O professor deve estar cadastrado no sistema</li>
-              <li>O aluno será criado automaticamente se não existir</li>
-              <li>Projetos serão criados como rascunho</li>
-            </ul>
-          </div>
-
-          <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-cyan-400 transition">
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleImportFile}
-              className="hidden"
-              id="import-file-input"
-            />
-            <label
-              htmlFor="import-file-input"
-              className="cursor-pointer flex flex-col items-center gap-2"
-            >
-              <FileSpreadsheet className="h-8 w-8 text-slate-400" />
-              {importFile ? (
-                <span className="text-slate-700 font-semibold">{importFile.name}</span>
-              ) : (
-                <span className="text-slate-500">Clique para selecionar o arquivo XLSX</span>
-              )}
-            </label>
-          </div>
-
-          {importResult && (
-            <div className={`p-3 rounded-xl font-semibold ${
-              importResult.startsWith('Erro')
-                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-            }`}>
-              {importResult}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { setShowImportModal(false); setImportFile(null); setImportResult(null); }}
-            >
-              Cancelar
-            </Button>
-            <button
-              onClick={handleConfirmImport}
-              disabled={!importFile || isImporting}
-              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-4 py-2 rounded-xl font-bold text-xs transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-            >
-              {isImporting ? (
-                <span className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Upload className="h-3.5 w-3.5" />
-              )}
-              Confirmar Importação
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 };

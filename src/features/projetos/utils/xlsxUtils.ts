@@ -4,32 +4,11 @@
  */
 
 import * as XLSX from 'xlsx';
-import { Projeto, normalizeCampus } from '../../../types';
+import jsPDF from 'jspdf';
+import { Projeto } from '../../../types';
 
 /**
- * Categorias válidas para projetos
- */
-const CATEGORIAS_VALIDAS = ['Extensão', 'IC'];
-
-/**
- * Colunas do modelo de importação
- */
-const IMPORT_COLUMNS = [
-  'nome_projeto',
-  'categoria',
-  'campus',
-  'descricao',
-  'carga_horaria',
-  'data_inicio',
-  'data_termino',
-  'nome_professor',
-  'email_professor',
-  'nome_completo_aluno',
-  'email_aluno',
-];
-
-/**
- * Colunas da exportação de dados existentes
+ * Colunas da exportação de dados
  */
 const EXPORT_COLUMNS = [
   'nome_projeto',
@@ -49,115 +28,27 @@ const EXPORT_COLUMNS = [
   'data_aprovacao',
 ];
 
-/**
- * Dados fictícios para o modelo de importação
- */
-const SAMPLE_DATA = [
-  // Projeto 1 - 3 alunos
-  ['Ação Comunitária de Saúde', 'Extensão', 'GRAÇAS', 'Projeto de atendimento comunitário com ações de prevenção e promoção da saúde', 60, '2026-03-01', '2026-06-30', 'Maria Silva', 'maria.silva@uninassau.br', 'João Pedro da Silva', 'joao@estudante.uninassau.br'],
-  ['Ação Comunitária de Saúde', 'Extensão', 'GRAÇAS', 'Projeto de atendimento comunitário com ações de prevenção e promoção da saúde', 60, '2026-03-01', '2026-06-30', 'Maria Silva', 'maria.silva@uninassau.br', 'Ana Beatriz Santos', 'ana@estudante.uninassau.br'],
-  ['Ação Comunitária de Saúde', 'Extensão', 'GRAÇAS', 'Projeto de atendimento comunitário com ações de prevenção e promoção da saúde', 60, '2026-03-01', '2026-06-30', 'Maria Silva', 'maria.silva@uninassau.br', 'Carlos Eduardo Lima', 'carlos@estudante.uninassau.br'],
-  // Projeto 2 - 2 alunos
-  ['Monitoria de Programação Python', 'IC', 'CAXANGÁ', 'Programa de monitoria para alunos de Ciência da Computação em linguagem Python', 40, '2026-04-01', '2026-07-31', 'José Santos', 'jose.santos@uninassau.br', 'Fernanda Oliveira', 'fernanda@estudante.uninassau.br'],
-  ['Monitoria de Programação Python', 'IC', 'CAXANGÁ', 'Programa de monitoria para alunos de Ciência da Computação em linguagem Python', 40, '2026-04-01', '2026-07-31', 'José Santos', 'jose.santos@uninassau.br', 'Pedro Henrique Souza', 'pedro@estudante.uninassau.br'],
-  // Projeto 3 - 1 aluno
-  ['Oficina de Arte Urbana', 'Extensão', 'BOA_VIAGEM', 'Oficina de arte urbana voltada para jovens da comunidade', 30, '2026-05-01', '2026-08-15', 'Ana Costa', 'ana.costa@uninassau.br', 'Lucas Ferreira', 'lucas@estudante.uninassau.br'],
-];
-
-/**
- * Instruções para preenchimento da planilha
- */
-const INSTRUCTIONS = [
-  ['INSTRUÇÕES DE PREENCHIMENTO DA PLANILHA DE IMPORTAÇÃO'],
-  [''],
-  ['1. COLUNAS OBRIGATÓRIAS'],
-  ['nome_projeto', 'Nome completo do projeto (texto)'],
-  ['categoria', 'Extensão ou IC (case-insensitive, será normalizado)'],
-  ['campus', 'GRAÇAS, CAXANGÁ ou BOA_VIAGEM (acentos serão normalizados)'],
-  ['descricao', 'Descrição detalhada do projeto'],
-  ['carga_horaria', 'Número inteiro maior que 0'],
-  ['data_inicio', 'Data de início (formato: AAAA-MM-DD ou DD/MM/AAAA)'],
-  ['data_termino', 'Data de término (formato: AAAA-MM-DD ou DD/MM/AAAA)'],
-  ['nome_professor', 'Nome completo do professor responsável'],
-  ['email_professor', 'Email institucional do professor'],
-  ['nome_completo_aluno', 'Nome completo do aluno participante'],
-  ['email_aluno', 'Email do aluno participante'],
-  [''],
-  ['2. REGRAS DE AGRUPAMENTO'],
-  ['Projetos são agrupados por: nome_projeto + email_professor'],
-  ['Linhas com mesmo nome_projeto e email_professor = MESMO PROJETO'],
-  ['Cada linha deve ter um aluno diferente'],
-  [''],
-  ['3. REGRAS DE VALIDAÇÃO'],
-  ['O professor deve existir no sistema'],
-  ['O email do professor deve ser válido'],
-  ['O email do aluno deve ser válido'],
-  ['A carga horária deve ser um número maior que 0'],
-  ['A data de término deve ser igual ou posterior à data de início'],
-  ['O campus deve ser: GRAÇAS, CAXANGÁ ou BOA_VIAGEM'],
-  [''],
-  ['4. EXEMPLOS DE CATEGORIAS VÁLIDAS'],
-  ['Extensão', 'Extensão Universitária'],
-  ['IC', 'Iniciação Científica'],
-  [''],
-  ['5. VALORES VÁLIDOS PARA CAMPUS'],
-  ['GRAÇAS', 'UNINASSAU Graças'],
-  ['CAXANGÁ', 'UNINASSAU Caxangá'],
-  ['BOA_VIAGEM', 'UNINASSAU Boa Viagem'],
-  ['(GRACAS, CAXANGA, BOAVIAGEM também são aceitos - acentos são normalizados)'],
-  [''],
-  ['6. OBSERVAÇÕES IMPORTANTES'],
-  ['O código interno do projeto será gerado automaticamente pelo sistema'],
-  ['NÃO inclua: código_projeto, matrícula, CPF, senha'],
-  ['O professor precisa estar cadastrado no sistema'],
-  ['O aluno será criado automaticamente se não existir'],
-  ['Projetos serão criados como rascunho (precisam aprovação posterior)'],
-  [''],
-  ['7. FORMATO DE DATAS'],
-  ['Aceitos: AAAA-MM-DD (2026-03-01) ou DD/MM/AAAA (01/03/2026)'],
-  [''],
-  ['8. LIMITE'],
-  ['Máximo de 500 linhas por importação (admin)'],
-  ['Máximo de 200 linhas por importação (professor)'],
-];
-
-/**
- * Baixa o modelo XLSX de importação de projetos
- */
-export function downloadImportTemplate(): void {
-  const wb = XLSX.utils.book_new();
-
-  // Aba IMPORTACAO com dados de exemplo
-  const wsImport = XLSX.utils.aoa_to_sheet([IMPORT_COLUMNS, ...SAMPLE_DATA]);
-  // Definir larguras das colunas
-  wsImport['!cols'] = [
-    { wch: 35 }, // nome_projeto
-    { wch: 12 }, // categoria
-    { wch: 14 }, // campus
-    { wch: 50 }, // descricao
-    { wch: 14 }, // carga_horaria
-    { wch: 14 }, // data_inicio
-    { wch: 14 }, // data_termino
-    { wch: 25 }, // nome_professor
-    { wch: 35 }, // email_professor
-    { wch: 30 }, // nome_completo_aluno
-    { wch: 35 }, // email_aluno
-  ];
-  XLSX.utils.book_append_sheet(wb, wsImport, 'IMPORTACAO');
-
-  // Aba INSTRUCOES
-  const wsInstr = XLSX.utils.aoa_to_sheet(INSTRUCTIONS);
-  wsInstr['!cols'] = [
-    { wch: 40 },
-    { wch: 50 },
-  ];
-  XLSX.utils.book_append_sheet(wb, wsInstr, 'INSTRUCOES');
-
-  XLSX.writeFile(wb, 'modelo_importacao_projetos.xlsx');
+function formatStatusLabel(status?: string): string {
+  switch (status) {
+    case 'enviado':
+      return 'Aguardando 1ª análise';
+    case 'reenviado':
+      return 'Reenviado para nova análise';
+    case 'correcao_solicitada':
+      return 'Aguardando correção do professor';
+    case 'aprovado':
+      return 'Aprovado';
+    case 'rejeitado':
+      return 'Rejeitado';
+    case 'rascunho':
+      return 'Rascunho';
+    default:
+      return status || '—';
+  }
 }
 
 /**
- * Exporta projetos existentes para XLSX
+ * Exporta projetos existentes para XLSX (Excel)
  * Gera uma linha por participante
  */
 export function exportProjectsToXlsx(
@@ -170,7 +61,6 @@ export function exportProjectsToXlsx(
     const participants = proj.alunosParticipantes || [];
 
     if (participants.length === 0) {
-      // Projeto sem participantes - exporta uma linha vazia para o aluno
       rows.push([
         proj.nome || '',
         proj.areaTematica || '',
@@ -179,17 +69,16 @@ export function exportProjectsToXlsx(
         proj.cargaHoraria || 0,
         proj.dataInicio || '',
         proj.dataTermino || '',
-        proj.status || '',
+        formatStatusLabel(proj.status),
         proj.professorResponsavel || '',
         proj.professorEmail || '',
         '',
         '',
         proj.dataCriacao || '',
-        '',
-        '',
+        proj.dataAtualizacao || '',
+        proj.reviewedAt || '',
       ]);
     } else {
-      // Uma linha por participante
       for (const aluno of participants) {
         rows.push([
           proj.nome || '',
@@ -199,14 +88,14 @@ export function exportProjectsToXlsx(
           proj.cargaHoraria || 0,
           proj.dataInicio || '',
           proj.dataTermino || '',
-          proj.status || '',
+          formatStatusLabel(proj.status),
           proj.professorResponsavel || '',
           proj.professorEmail || '',
           aluno.nome || '',
           aluno.email || '',
           proj.dataCriacao || '',
-          '',
-          '',
+          proj.dataAtualizacao || '',
+          proj.reviewedAt || '',
         ]);
       }
     }
@@ -215,24 +104,197 @@ export function exportProjectsToXlsx(
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [
-    { wch: 35 }, // nome_projeto
-    { wch: 12 }, // categoria
-    { wch: 14 }, // campus
-    { wch: 50 }, // descricao
-    { wch: 14 }, // carga_horaria
-    { wch: 14 }, // data_inicio
-    { wch: 14 }, // data_termino
-    { wch: 18 }, // status
-    { wch: 25 }, // nome_professor
-    { wch: 35 }, // email_professor
-    { wch: 30 }, // nome_completo_aluno
-    { wch: 35 }, // email_aluno
-    { wch: 20 }, // data_criacao
-    { wch: 20 }, // data_envio
-    { wch: 20 }, // data_aprovacao
+    { wch: 35 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 50 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 26 },
+    { wch: 25 },
+    { wch: 35 },
+    { wch: 30 },
+    { wch: 35 },
+    { wch: 20 },
+    { wch: 20 },
+    { wch: 20 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, 'Projetos e Participantes');
 
   const defaultFilename = `exportacao_projetos_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, filename || defaultFilename);
+}
+
+/**
+ * Exporta projetos existentes para CSV
+ * Compatível com acentuação e Excel em português
+ */
+export function exportProjectsToCsv(
+  projetos: Projeto[],
+  filename?: string
+): void {
+  const headers = [
+    'Nome do Projeto',
+    'Categoria',
+    'Campus',
+    'Descrição',
+    'Carga Horária (h)',
+    'Data Início',
+    'Data Término',
+    'Status',
+    'Professor Responsável',
+    'Email Professor',
+    'Aluno Participante',
+    'Email Aluno',
+    'Data Criação/Envio'
+  ];
+
+  const rows: string[][] = [headers];
+
+  for (const proj of projetos) {
+    const participants = proj.alunosParticipantes || [];
+    if (participants.length === 0) {
+      rows.push([
+        proj.nome || '',
+        proj.areaTematica || '',
+        proj.campus || '',
+        proj.descricao || '',
+        String(proj.cargaHoraria || 0),
+        proj.dataInicio || '',
+        proj.dataTermino || '',
+        formatStatusLabel(proj.status),
+        proj.professorResponsavel || '',
+        proj.professorEmail || '',
+        '',
+        '',
+        proj.dataCriacao || ''
+      ]);
+    } else {
+      for (const aluno of participants) {
+        rows.push([
+          proj.nome || '',
+          proj.areaTematica || '',
+          proj.campus || '',
+          proj.descricao || '',
+          String(proj.cargaHoraria || 0),
+          proj.dataInicio || '',
+          proj.dataTermino || '',
+          formatStatusLabel(proj.status),
+          proj.professorResponsavel || '',
+          proj.professorEmail || '',
+          aluno.nome || '',
+          aluno.email || '',
+          proj.dataCriacao || ''
+        ]);
+      }
+    }
+  }
+
+  const csvContent = rows
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
+    .join('\r\n');
+
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename || `exportacao_projetos_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Exporta projetos filtrados para PDF
+ * Gera relatório visual paginado em formato A4 Paisagem
+ */
+export function exportProjectsToPdf(
+  projetos: Projeto[],
+  filename?: string
+): void {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  // Cabeçalho institucional
+  doc.setFillColor(15, 23, 42); // slate-900
+  doc.rect(0, 0, pageWidth, 24, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text('UNINASSAU - Relatório de Projetos de Extensão & Iniciação Científica', 14, 11);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(203, 213, 225); // slate-300
+  const dateStr = new Date().toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  doc.text(`Gerado em: ${dateStr} | Total de projetos exportados: ${projetos.length}`, 14, 18);
+
+  let y = 32;
+
+  const drawTableHeader = () => {
+    doc.setFillColor(241, 245, 249); // slate-100
+    doc.rect(14, y, pageWidth - 28, 8, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(51, 65, 85); // slate-700
+    doc.text('NOME DO PROJETO', 16, y + 5.5);
+    doc.text('CATEGORIA', 85, y + 5.5);
+    doc.text('CAMPUS', 115, y + 5.5);
+    doc.text('ORIENTADOR', 142, y + 5.5);
+    doc.text('CH', 198, y + 5.5);
+    doc.text('DISCENTES', 212, y + 5.5);
+    doc.text('STATUS', 242, y + 5.5);
+    y += 9;
+  };
+
+  drawTableHeader();
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+
+  projetos.forEach((p, index) => {
+    if (y > pageHeight - 16) {
+      doc.addPage();
+      y = 15;
+      drawTableHeader();
+    }
+
+    // Linhas alternadas
+    if (index % 2 === 1) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(14, y - 1, pageWidth - 28, 7, 'F');
+    }
+
+    doc.setTextColor(30, 41, 59);
+    const nomeProj = doc.splitTextToSize(p.nome || '—', 66)[0];
+    const cat = p.areaTematica || '—';
+    const campus = p.campus || '—';
+    const orientador = doc.splitTextToSize(p.professorResponsavel || '—', 52)[0];
+    const ch = `${p.cargaHoraria || 0}h`;
+    const discentes = `${(p.alunosParticipantes || []).length} aluno(s)`;
+    const status = formatStatusLabel(p.status);
+
+    doc.text(nomeProj, 16, y + 3.5);
+    doc.text(cat, 85, y + 3.5);
+    doc.text(campus, 115, y + 3.5);
+    doc.text(orientador, 142, y + 3.5);
+    doc.text(ch, 198, y + 3.5);
+    doc.text(discentes, 212, y + 3.5);
+    doc.text(status, 242, y + 3.5);
+
+    y += 7;
+  });
+
+  const defaultFilename = `relatorio_projetos_${new Date().toISOString().slice(0, 10)}.pdf`;
+  doc.save(filename || defaultFilename);
 }
